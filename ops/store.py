@@ -90,12 +90,33 @@ class InMemoryFleetStore:
 
 
 class FirestoreFleetStore:
+    """Firestore-backed, with the client built lazily on first use.
+
+    The laziness is not an optimisation. Agent Engine deploys by pickling the
+    application by value, and a live Firestore client is explicitly unpicklable
+    — holding one at construction fails the deploy with a serialisation error
+    that names nothing useful. It also means constructing a store in a test
+    never reaches for credentials.
+    """
+
     def __init__(self, collection: str = "fleet", client: Any = None) -> None:
-        if client is None:
+        self._collection_name = collection
+        self._client = client
+
+    def __getstate__(self) -> dict:
+        # Never carry a client across a pickle, even one that was injected.
+        return {"_collection_name": self._collection_name, "_client": None}
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+
+    @property
+    def _collection(self):
+        if self._client is None:
             from google.cloud import firestore
 
-            client = firestore.Client()
-        self._collection = client.collection(collection)
+            self._client = firestore.Client()
+        return self._client.collection(self._collection_name)
 
     def get(self, agent_id: str) -> AgentRecord:
         snapshot = self._collection.document(agent_id).get()

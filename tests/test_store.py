@@ -125,3 +125,24 @@ def test_with_state_does_not_mutate_the_original():
 def test_a_record_refuses_a_state_the_machine_does_not_know():
     with pytest.raises(ValueError):
         CANDIDATE.with_state("deleted")
+
+
+def test_the_firestore_store_can_be_constructed_without_credentials():
+    """Constructing a store must not reach for credentials. A test suite that
+    needs them to import a module is a suite that stops running."""
+    from ops.store import FirestoreFleetStore
+
+    FirestoreFleetStore(collection="never-read")
+
+
+def test_the_firestore_store_survives_serialisation():
+    """Agent Engine deploys by pickling the app by value, and a live Firestore
+    client is explicitly unpicklable. If the store holds one at construction,
+    deployment fails with a serialisation error that names nothing useful."""
+    import cloudpickle
+
+    from ops.store import FirestoreFleetStore
+
+    restored = cloudpickle.loads(cloudpickle.dumps(FirestoreFleetStore()))
+
+    assert isinstance(restored, FirestoreFleetStore)
