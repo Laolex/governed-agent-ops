@@ -12,10 +12,16 @@ schema gets copied by the model into its calls, which manufactures agreement out
 of nothing: during the spike, "e.g. NORTHSTAR-S01E06" in a docstring produced the
 same confident answer on every run, including the run with no memory at all.
 
-The model is pinned to `global` through `client_kwargs`, because that is where
-gemini-3.5-flash is served. Moving the whole process to `global` instead would
-send the memory service looking for the agent engine in a region where it does
-not exist, and retrieval would silently return nothing.
+The model is pinned to `global` through `client_kwargs`. A Vertex publisher
+model is a per-region resource, enabled region by region, so where it is not yet
+enabled the resource genuinely does not exist and 404 is the literally correct
+answer. Measured 2026-08-18: global 200, europe-west2 200, asia-southeast1 200,
+us-central1 404, europe-west4 404, us-east5 404 — a subset, not "everywhere but
+global", and that set grows as the rollout continues. `global` is the safe
+default because it routes to wherever the model actually is. Moving the whole
+process to `global` instead would send the memory service looking for the agent
+engine in a region where it does not exist, and retrieval would silently return
+nothing.
 """
 
 from __future__ import annotations

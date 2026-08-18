@@ -51,11 +51,13 @@ def test_the_agent_holds_exactly_the_permitted_tools():
 
 
 def test_the_agents_model_is_pinned_to_where_it_is_served():
-    """gemini-3.5-flash is published only from `global`; every regional endpoint
-    404s. The agent is deployed to an engine in us-central1, so the model cannot
-    inherit the deployment's region — and the fix is not to move the process,
-    which would send the memory service looking for the engine in a region where
-    it does not exist."""
+    """A Vertex publisher model is a per-region resource. gemini-3.5-flash is
+    served from global, europe-west2 and asia-southeast1, and 404s from
+    us-central1, europe-west4 and us-east5 (measured 2026-08-18) — a subset, not
+    everywhere-but-global. This agent is deployed to an engine in us-central1,
+    so the model cannot inherit the deployment's region, and the fix is not to
+    move the process: that would send the memory service looking for the engine
+    in a region where it does not exist."""
     agent = build_agent(_store())
     assert agent.model.model == "gemini-3.5-flash"
     assert agent.model.client_kwargs["location"] == "global"
