@@ -41,3 +41,14 @@ against live Firestore:
 ```bash
 GOOGLE_CLOUD_PROJECT=<project> GAO_LIVE_TESTS=1 .venv/bin/python -m pytest tests/ -q
 ```
+
+## Running the console
+
+```bash
+GOOGLE_CLOUD_PROJECT=<project> GAO_ENGINE_ID=<reasoning engine id> \
+  .venv/bin/uvicorn ops.service:app --port 8811
+```
+
+`/` serves the console; `/api/fleet`, `/api/ask`, `/api/decisions` are the surface behind it.
+An unset `GAO_ENGINE_ID` returns 503 naming the variable, so a misconfiguration never reads
+as a failure to decide.
