@@ -138,3 +138,22 @@ def test_a_tool_response_never_carries_a_determination():
     proposal = propose("promote", "billing-reconciler", "")
     assert "outcome" not in proposal
     assert "rule_hits" not in proposal
+
+
+def test_the_agent_can_retrieve_what_the_operator_told_it_before():
+    """Scene 2 depends on this. An operator says 'quarantine whatever started
+    failing last night' — the referent lives in memory, not in the message, so
+    without retrieval in the decision path there is no decision to record."""
+    agent = build_agent(_store())
+    assert "preload_memory" in tool_names(agent)
+
+
+def test_memory_retrieval_is_not_counted_as_a_permitted_write_tool():
+    """preload_memory reads. It is in the tool set but it is not one of the
+    three fleet tools, and conflating the two would hide a change to the agent's
+    authority behind a change to its context."""
+    from ops.agent import FLEET_TOOLS
+
+    assert set(FLEET_TOOLS) == {"read_fleet", "find_agent", "propose_operation"}
+    assert "preload_memory" in PERMITTED_TOOLS
+    assert "preload_memory" not in FLEET_TOOLS

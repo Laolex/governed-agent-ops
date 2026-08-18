@@ -28,15 +28,21 @@ from ops.store import FleetStore, UnknownAgent
 DEFAULT_MODEL = "gemini-3.5-flash"
 MODEL_LOCATION = "global"
 
-PERMITTED_TOOLS = ("read_fleet", "find_agent", "propose_operation")
+# The three tools that touch the fleet. All read-only; none can write.
+FLEET_TOOLS = ("read_fleet", "find_agent", "propose_operation")
+
+# Everything the agent holds. preload_memory reads the operator's memory into the
+# turn and is listed separately from FLEET_TOOLS deliberately: a change to what
+# the agent can *do* must not be able to hide behind a change to what it *knows*.
+PERMITTED_TOOLS = FLEET_TOOLS + ("preload_memory",)
 
 INSTRUCTION = """\
 You help a platform operator manage a fleet of agents.
 
 Resolve what the operator is referring to. They will often name an agent
 indirectly — by what it does, by what went wrong, or by something they told you
-earlier. Use what you remember about this operator to resolve it, then call
-propose_operation with the identifier you resolved.
+earlier. Use what you remember about this operator, together with the fleet, to
+resolve it, then call propose_operation with the identifier you resolved.
 
 Never invent an agent identifier. If you cannot resolve one, say so and stop.
 
@@ -116,6 +122,7 @@ def build_agent(store: FleetStore, model: str = DEFAULT_MODEL):
     """The ADK agent, holding only the tools PERMITTED_TOOLS names."""
     from google.adk.agents import Agent
     from google.adk.models.google_llm import Gemini
+    from google.adk.tools import preload_memory
 
     return Agent(
         name="fleet_ops_agent",
@@ -126,6 +133,7 @@ def build_agent(store: FleetStore, model: str = DEFAULT_MODEL):
         ),
         instruction=INSTRUCTION,
         tools=[
+            preload_memory,
             build_read_fleet(store),
             build_find_agent(store),
             build_propose_operation(store),

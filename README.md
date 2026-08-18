@@ -92,3 +92,34 @@ PASS  manifest removed       NOT_CERTIFIED
 The middle two arms are the interesting ones: they are what an ordinary observability record
 looks like. It knows what the model was shown; it does not know which versioned record that
 came from, or what else was in scope and lost.
+
+## Rehearsing the demo
+
+```bash
+GOOGLE_CLOUD_PROJECT=<project> python3 scripts/rehearse.py
+```
+
+Ten checks against the live deployment, run before any recording session. On a sister project
+a whole layer turned out never to have been wired into the write path, and it was found by
+rehearsing the demo rather than by the tests — the tests covered the layer, not its absence
+from the path.
+
+## What the divergence looks like
+
+Two records, same operator, same words, same policy revision. Between them, one memory was
+written by an unrelated process — no code change, no config change:
+
+| | record A | record B |
+|---|---|---|
+| target | `invoice-classifier` | `billing-reconciler` |
+| in scope | 3 | 4 |
+| selected | 3 | 3 |
+| excluded | 0 | 1 |
+
+Google's own trace carries the text that was injected into each prompt, and no memory
+identity or revision. These records name which versioned records were selected, how many were
+in scope, and how many lost.
+
+## License
+
+Apache-2.0.
