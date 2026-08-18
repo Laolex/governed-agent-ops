@@ -27,6 +27,12 @@ class InMemoryHarness:
     def open(self):
         return InMemoryFleetStore(self._data)
 
+    def cleanup(self) -> None:
+        # Harness objects are built once at parametrisation time, so without
+        # this the backing dict carries agents between tests and an exact-set
+        # assertion would be reading someone else's fleet.
+        self._data.clear()
+
 
 class FirestoreHarness:
     name = "firestore"
