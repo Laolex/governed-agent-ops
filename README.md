@@ -127,3 +127,17 @@ in scope, and how many lost.
 ## License
 
 Apache-2.0.
+
+## Reproducing the demo
+
+```bash
+GOOGLE_CLOUD_PROJECT=<project> GAO_ENGINE_ID=<engine> python3 scripts/seed_demo.py
+```
+
+Clears the ledger, fleet, facts and operator memories, then writes back the starting position
+the four scenes need. `invoice-classifier` is seeded with **no** attestation record on
+purpose — an absent record is not an empty one, and the `ESCALATE` beat depends on that
+difference being real rather than staged.
+
+Re-run it after a rehearsal: the rehearsal writes real records, and a demo that opens on a
+ledger full of test traffic tells the wrong story.
