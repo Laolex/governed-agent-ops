@@ -23,10 +23,14 @@ change.
 This project records what the platform does not: which records were selected, out of what
 population, and which versioned record the injected text came from.
 
+**Live:** https://gao-597227190850.us-central1.run.app
+
 ## Status
 
-Under construction for the All Things Agentic hackathon. Built: the fleet state machine, the
-fleet store (in-memory and Firestore behind one contract), and the deterministic policy gate.
+Built and deployed for the All Things Agentic hackathon: the fleet state machine, the fleet
+store, the deterministic policy gate, the retrieval manifest, the hash-chained ledger, the
+executor, the ADK agent on Vertex AI Agent Engine, the console, the standalone verifier and
+the ablation.
 
 ## Running the tests
 
