@@ -6,6 +6,41 @@ decided from**.
 
 > When an autonomous agent makes a decision, can you prove exactly why it was allowed to do it?
 
+## The one shot
+
+```
+  One request, run twice. Between them, one memory written by another process.
+
+                            GOOGLE'S RECORD                THE GOVERNED RECORD
+
+  request                   byte-identical                 byte-identical
+  code / config changed     none                           none
+  outcome                   ESCALATE → BLOCKED  ← moved    invoice-classifier → billing-reconciler
+
+  fact text kept            yes, verbatim                  yes, by SHA-256
+  memory identities named   0 — in any file                every selection, by revision
+  population in scope       absent                         3 → 4
+  anything excluded?        unrecorded                     0 → 1
+  what displaced it         unrecoverable                  4 at distance 0.19
+
+  verifier's answer         cannot explain the move        BOUND
+  binding stripped          —                              UNBOUND — refuses to certify
+```
+
+```bash
+python3 scripts/frame.py      # bare python3, no credentials, no network
+```
+
+The left column is read out of `evidence/h4b-*.sse` — real captured output from the
+2026-08-18 probe run — and nothing is parsed that those files do not literally contain.
+The right column is computed through the production manifest builder and the production
+verifier on a deterministic store: it is the record shape, not a replay of the run on the
+left, and the frame says so rather than letting the two blur together.
+
+The script exits non-zero without printing if the captured runs stop diverging, if a memory
+identity ever appears in the evidence, or if the verifier stops separating a bound record
+from a stripped one.
+
 ## Why this exists
 
 On Google's agent platform, a decision's *inputs* are not recorded the way its *output* is.
@@ -152,6 +187,9 @@ written by an unrelated process — no code change, no config change:
 | in scope | 3 | 4 |
 | selected | 3 | 3 |
 | excluded | 0 | 1 |
+
+`python3 scripts/frame.py` prints this beside what the platform kept for the same
+divergence, and computes both halves rather than restating this table.
 
 Google's own trace carries the text that was injected into each prompt, and no memory
 identity or revision. These records name which versioned records were selected, how many were
