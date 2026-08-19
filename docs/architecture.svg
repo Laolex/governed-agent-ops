@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" font-family="'SF Mono','Cascadia Code',ui-monospace,Menlo,monospace">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5b6b7f"/>
+    </marker>
+    <style>
+      .box{fill:#f6f8fa;stroke:#c9d1d9;stroke-width:1.5;rx:8}
+      .accent{fill:#eef4ff;stroke:#7aa2f7;stroke-width:1.5}
+      .engine{fill:#fff8e8;stroke:#e3b341;stroke-width:1.5}
+      .write{fill:#ecf8ee;stroke:#7ee787;stroke-width:1.5}
+      .tier{fill:#7aa2f7}
+      .t{font-size:15px;font-weight:600;fill:#0e1116}
+      .s{font-size:12px;fill:#5b6b7f}
+      .lbl{font-size:11px;fill:#5b6b7f}
+      .cap{font-size:11px;font-weight:600;fill:#0e1116}
+    </style>
+  </defs>
+
+  <!-- Engines -->
+  <rect x="30" y="18" width="400" height="82" class="engine"/>
+  <text x="46" y="44" class="t">Operations agent</text>
+  <text x="46" y="64" class="s">Vertex AI Agent Engine · ADK · gemini-3.5-flash</text>
+  <text x="46" y="82" class="s">read-only: read_fleet · find_agent · propose_operation</text>
+
+  <rect x="470" y="18" width="400" height="82" class="engine"/>
+  <text x="486" y="44" class="t">Spike / H4b rig</text>
+  <text x="486" y="64" class="s">(Scene 2) demonstrates the memory divergence</text>
+  <text x="486" y="82" class="s">Memory Bank retrieval is invisible in the record</text>
+
+  <!-- Console -->
+  <rect x="30" y="140" width="400" height="60" class="box"/>
+  <text x="46" y="164" class="t">Operator console</text>
+  <text x="46" y="184" class="s">single page · one origin</text>
+
+  <!-- Service -->
+  <rect x="30" y="244" width="400" height="64" class="box"/>
+  <text x="46" y="268" class="t">Service layer (/api)</text>
+  <text x="46" y="288" class="s">asks the agent · reads only what it proposed</text>
+
+  <!-- Fleet store -->
+  <rect x="470" y="140" width="400" height="60" class="box"/>
+  <text x="486" y="164" class="t">Fleet store</text>
+  <text x="486" y="184" class="s">agent state (Firestore)</text>
+
+  <!-- Executor -->
+  <rect x="470" y="244" width="400" height="70" class="write"/>
+  <text x="486" y="268" class="t">Executor — the only writer</text>
+  <text x="486" y="288" class="s">policy gate → state change → record</text>
+  <text x="486" y="306" class="s">builds the retrieval manifest first</text>
+
+  <!-- Manifest -->
+  <rect x="30" y="348" width="400" height="60" class="accent"/>
+  <text x="46" y="372" class="t">Retrieval manifest</text>
+  <text x="46" y="392" class="s">what was in scope (Memory Bank), by identity</text>
+
+  <!-- Record -->
+  <rect x="470" y="356" width="400" height="60" class="write"/>
+  <text x="486" y="380" class="t">Decision record</text>
+  <text x="486" y="400" class="s">immutable · names inputs by identity</text>
+
+  <!-- Verifier -->
+  <rect x="470" y="452" width="400" height="64" class="box"/>
+  <text x="486" y="476" class="t">Standalone verifier</text>
+  <text x="486" y="496" class="s">BOUND · UNBOUND · NOT_CERTIFIED — refuses</text>
+
+  <!-- Arrows -->
+  <line x1="230" y1="200" x2="230" y2="244" stroke="#5b6b7f" marker-end="url(#arr)"/>
+  <line x1="230" y1="308" x2="360" y2="348" stroke="#5b6b7f" marker-end="url(#arr)"/>
+  <line x1="470" y1="170" x2="250" y2="170" stroke="#5b6b7f" stroke-dasharray="3 3" marker-end="url(#arr)"/>
+  <line x1="470" y1="278" x2="250" y2="348" stroke="#5b6b7f" marker-end="url(#arr)"/>
+  <line x1="870" y1="278" x2="870" y2="356" stroke="#5b6b7f" marker-end="url(#arr)"/>
+  <line x1="110" y1="262" x2="470" y2="262" stroke="#5b6b7f" marker-end="url(#arr)"/>
+
+  <!-- Labels -->
+  <text x="238" y="200" class="lbl">ask</text>
+  <text x="340" y="330" class="lbl">same query, second call</text>
+  <text x="470" y="214" class="lbl">reads</text>
+  <text x="150" y="360" class="lbl">verify / ablate</text>
+</svg>

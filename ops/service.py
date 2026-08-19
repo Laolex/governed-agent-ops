@@ -127,10 +127,60 @@ def decisions(ledger=Depends(get_ledger)) -> dict:
 
 @app.get("/api/decisions/{record_hash}")
 def decision(record_hash: str, ledger=Depends(get_ledger)) -> dict:
+    return _find_decision(ledger, record_hash)
+
+
+def _find_decision(ledger, record_hash: str) -> dict:
     for entry in ledger.read_all():
         if entry["hash"] == record_hash:
             return entry
     raise HTTPException(404, "no such record")
+
+
+@app.get("/api/decisions/{record_hash}/verify")
+def decision_verify(record_hash: str, ledger=Depends(get_ledger)) -> dict:
+    """The capability class a third party can establish from this record alone.
+
+    Traces are exported out-of-band, so no live trace is consulted here: the
+    strongest class a record earns on its own is BOUND_UNCORROBORATED. What THIS
+    endpoint is for is the refusal — a record that has been tampered with, or
+    that never carried revision identities or a population, certifies nothing.
+    """
+    from ops.verifier import verify_record
+
+    entry = _find_decision(ledger, record_hash)
+    verdict = verify_record(entry, trace=None)
+    return {
+        "hash": record_hash,
+        "capability": verdict.capability,
+        "reason": verdict.reason,
+    }
+
+
+@app.get("/api/decisions/{record_hash}/ablate")
+def decision_ablate(record_hash: str, ledger=Depends(get_ledger)) -> dict:
+    """The necessity test: does the retrieval binding change what can be proven?
+
+    Classifies the intact record, then one thing removed at a time. If a stripped
+    arm still certifies, the binding is decoration and this says so. The client
+    renders the drop (e.g. BOUND_UNCORROBORATED -> UNBOUND) so a judge watches the
+    ablation fire against a real record, not a scripted one.
+    """
+    from ops.ablate import arms, expected
+
+    entry = _find_decision(ledger, record_hash)
+    return {
+        "hash": record_hash,
+        "arms": [
+            {
+                "name": a["name"],
+                "capability": a["capability"],
+                "reason": a["reason"],
+                "expected": expected(a["name"]),
+            }
+            for a in arms(entry)
+        ],
+    }
 
 
 @app.get("/")
