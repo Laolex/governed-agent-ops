@@ -205,3 +205,31 @@ def test_a_rollback_can_be_proposed():
 
     assert proposal["proposed"] is True
     assert proposal["operation"] == "rollback"
+
+
+def test_the_model_location_can_be_moved_without_touching_the_deployment(monkeypatch):
+    """`global` has its own quota pool and it can exhaust while the regional
+    endpoints still serve — observed 2026-08-19: global returned 429 while
+    europe-west2 and asia-southeast1 both returned 200. Routing through global
+    is therefore not insulation from quota, and the serving location has to be
+    changeable without redeploying to a different region, because the engine and
+    the memory service must stay where they are."""
+    monkeypatch.setenv("GEMINI_LOCATION", "europe-west2")
+
+    import importlib
+
+    import ops.agent
+
+    importlib.reload(ops.agent)
+    try:
+        agent = ops.agent.build_agent(_store())
+        assert agent.model.client_kwargs["location"] == "europe-west2"
+    finally:
+        monkeypatch.delenv("GEMINI_LOCATION")
+        importlib.reload(ops.agent)
+
+
+def test_the_model_location_defaults_to_global():
+    import ops.agent
+
+    assert ops.agent.MODEL_LOCATION == "global"

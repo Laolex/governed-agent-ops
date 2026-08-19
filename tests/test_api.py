@@ -224,3 +224,29 @@ def test_a_rollback_proposal_reaches_the_executor():
 
     assert result["determination"]["outcome"] == "PERMITTED"
     assert deps["store"].get("billing-reconciler").revision == "r6"
+
+
+def test_a_turn_with_no_events_at_all_is_an_agent_failure_not_a_refusal():
+    """Observed in production: the model returned 429 RESOURCE_EXHAUSTED, ADK
+    swallowed it, and the turn came back with zero events. That is
+    indistinguishable, downstream, from an agent that considered the request and
+    proposed nothing — so a quota problem would be reported to the operator as
+    the system declining to act. An empty turn is a failure to reach the agent,
+    and must say so."""
+    from ops.api import AgentUnavailable
+
+    deps = _deps([])
+
+    with pytest.raises(AgentUnavailable):
+        handle_ask("promote it", facts=CLEAN_FACTS, now="2026-08-18T18:00:00Z", **deps)
+
+
+def test_a_turn_that_only_talks_is_still_a_normal_no_proposal():
+    """The distinction matters in both directions: prose with no tool call is
+    the agent working, and must not be reported as an outage."""
+    deps = _deps(_events(text="I cannot tell which agent you mean."))
+
+    result = handle_ask("do something", facts=CLEAN_FACTS,
+                        now="2026-08-18T18:00:00Z", **deps)
+
+    assert result["determination"] is None

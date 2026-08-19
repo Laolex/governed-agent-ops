@@ -180,10 +180,15 @@ $('ask').addEventListener('submit', async e => {
   $('turn').className = 'empty';
   $('turn').textContent = 'Asking the agent…';
   try {
-    const result = await fetch('/api/ask', {
+    const response = await fetch('/api/ask', {
       method:'POST', headers:{'content-type':'application/json'},
       body: JSON.stringify({message})
-    }).then(r => r.json());
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.detail || ('HTTP ' + response.status));
+    }
+    const result = await response.json();
     renderTurn(result.transcript || []);
     let body = null;
     if (result.record_hash)
@@ -191,8 +196,12 @@ $('ask').addEventListener('submit', async e => {
     renderRecord(result, body || {});
     await loadFleet();
   } catch (err) {
+    // An outage must not read as a decision. The null-determination path below
+    // says "nothing was proposed", which is true of a working agent and a lie
+    // about a broken one.
     $('turn').className = 'empty';
-    $('turn').textContent = 'The agent could not be reached: ' + err;
+    $('turn').textContent = 'The agent could not be reached — no operation was '
+      + 'attempted and nothing was recorded. ' + err;
   } finally {
     $('send').disabled = false;
   }

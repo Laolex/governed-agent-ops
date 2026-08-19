@@ -26,13 +26,22 @@ nothing.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 
 from ops.fleet import OPERATIONS
 from ops.store import FleetStore, UnknownAgent
 
 DEFAULT_MODEL = "gemini-3.5-flash"
-MODEL_LOCATION = "global"
+
+# Where the model is served, which is not where this agent is deployed. `global`
+# is the default because it routes to wherever the model actually is — but it
+# has its own quota pool, and that pool can exhaust while the regional endpoints
+# still serve: observed 2026-08-19, global returned 429 while europe-west2 and
+# asia-southeast1 both returned 200. So this has to be movable without
+# redeploying to another region, since the engine and its memory service must
+# stay where they are.
+MODEL_LOCATION = os.environ.get("GEMINI_LOCATION", "global")
 
 # The three tools that touch the fleet. All read-only; none can write.
 FLEET_TOOLS = ("read_fleet", "find_agent", "propose_operation")

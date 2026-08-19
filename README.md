@@ -161,6 +161,22 @@ in scope, and how many lost.
 
 Apache-2.0.
 
+## Where the model runs
+
+`GEMINI_LOCATION` (default `global`) sets where the model is served — separately from where
+the agent is deployed, which stays `us-central1` because the engine and its memory service
+live there.
+
+`global` routes to wherever the model actually is, which is why it is the default. It is
+**not** insulation from quota: it has its own pool, and that pool can exhaust while the
+regional endpoints still serve. Measured 2026-08-19 — `global` returned **429
+RESOURCE_EXHAUSTED** while `europe-west2` and `asia-southeast1` both returned 200. Moving the
+model is a redeploy of the engine with the variable set, and nothing else changes:
+
+```bash
+GEMINI_LOCATION=europe-west2 python deploy/agent_engine.py --update <resource>
+```
+
 ## Reproducing the demo
 
 ```bash

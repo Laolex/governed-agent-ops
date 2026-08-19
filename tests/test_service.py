@@ -175,3 +175,18 @@ def test_the_console_is_served_from_the_same_origin_as_the_api(client):
     response = http.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+
+
+def test_an_agent_outage_is_a_502_not_a_null_determination(client):
+    """A 429 from the model must not reach the operator as 'nothing was
+    proposed'. The console renders a null determination as 'the turn proposed no
+    operation, so nothing was decided' — true of a working agent, and a lie
+    about a broken one."""
+    http, _, ledger = client
+    service.app.dependency_overrides[service.get_agent] = lambda: FakeAgent([])
+
+    response = http.post("/api/ask", json={"message": "promote it"})
+
+    assert response.status_code == 502
+    assert "agent" in response.json()["detail"].lower()
+    assert ledger.read_all() == []

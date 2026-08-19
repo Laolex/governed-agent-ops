@@ -27,6 +27,18 @@ class NoProposal(Exception):
     """The turn contained no proposal to act on."""
 
 
+class AgentUnavailable(Exception):
+    """The agent produced no turn at all.
+
+    Distinct from NoProposal on purpose. Observed in production: the model
+    returned 429 RESOURCE_EXHAUSTED, ADK swallowed it, and the turn came back
+    with zero events — which downstream is indistinguishable from an agent that
+    considered the request and proposed nothing. Reporting a quota outage to an
+    operator as "the system decided not to act" is the same class of mistake as
+    an unconfigured engine reading as a refusal to decide.
+    """
+
+
 class AgentClient(Protocol):
     def ask(self, message: str, user_id: str) -> list[dict]: ...
 
@@ -83,6 +95,11 @@ def handle_ask(
 ) -> dict:
     """Run one operator turn end to end."""
     events = agent.ask(message, user_id=operator)
+    if not events:
+        raise AgentUnavailable(
+            "the agent returned no turn — it could not be reached, or the model "
+            "refused the request before producing anything"
+        )
     transcript = build_transcript(events)
 
     try:

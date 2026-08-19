@@ -41,6 +41,12 @@ def build_app():
     )
 
 
+# GEMINI_LOCATION has to travel with the deployment: ops.agent reads it at import
+# time and the deployed container does not inherit this shell's environment. It
+# belongs on create/update, not on AdkApp.
+ENV_VARS = {"GEMINI_LOCATION": os.environ.get("GEMINI_LOCATION", "global")}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--update", metavar="RESOURCE")
@@ -63,7 +69,7 @@ def main() -> None:
     if args.update:
         engine = agent_engines.update(
             resource_name=args.update, agent_engine=build_app(),
-            requirements=REQUIREMENTS, extra_packages=["ops"],
+            requirements=REQUIREMENTS, extra_packages=["ops"], env_vars=ENV_VARS,
         )
         print("updated", engine.resource_name)
         return
@@ -72,6 +78,7 @@ def main() -> None:
         agent_engine=build_app(),
         requirements=REQUIREMENTS,
         extra_packages=["ops"],
+        env_vars=ENV_VARS,
         display_name="Fleet operations agent",
         description="Resolves fleet references and proposes lifecycle operations.",
     )

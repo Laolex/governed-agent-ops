@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ops.api import handle_ask
+from ops.api import AgentUnavailable, handle_ask
 from ops.facts import FirestoreFactsStore
 from ops.ledger import FirestoreLedger, verify_chain
 from ops.retrieval import VertexMemoryBank
@@ -99,17 +99,23 @@ def ask(request: AskRequest, store=Depends(get_store), ledger=Depends(get_ledger
         # should see a configuration error, not a system that appears to refuse.
         raise HTTPException(503, "GAO_ENGINE_ID is not configured")
 
-    return handle_ask(
-        request.message,
-        agent=agent,
-        store=store,
-        ledger=ledger,
-        bank=bank,
-        facts=facts,
-        now=_now(),
-        operator=request.operator,
-        scope={"app_name": ENGINE_ID, "user_id": request.operator},
-    )
+    try:
+        return handle_ask(
+            request.message,
+            agent=agent,
+            store=store,
+            ledger=ledger,
+            bank=bank,
+            facts=facts,
+            now=_now(),
+            operator=request.operator,
+            scope={"app_name": ENGINE_ID, "user_id": request.operator},
+        )
+    except AgentUnavailable as unavailable:
+        # 502, not 200 with a null determination: the console renders a null
+        # determination as "the turn proposed no operation", which is true of a
+        # working agent and a lie about a broken one.
+        raise HTTPException(502, f"the agent could not be reached: {unavailable}")
 
 
 @app.get("/api/decisions")
