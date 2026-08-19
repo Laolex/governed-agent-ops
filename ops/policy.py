@@ -65,6 +65,17 @@ def _evaluate_promote(agent: AgentRecord, facts: dict, now: str) -> Determinatio
     return Determination("PERMITTED")
 
 
+def _evaluate_register(owner: str, purpose: str) -> Determination:
+    # No attestation is demanded here. A candidate has not been attested yet —
+    # that is what promotion is for — and requiring one at registration would
+    # make the fleet unenterable.
+    if not owner.strip():
+        return _refuse("OWN-001", "A registration must name an owner.")
+    if not purpose.strip():
+        return _refuse("PUR-001", "A registration must state the agent's purpose.")
+    return Determination("PERMITTED")
+
+
 def _evaluate_quarantine(agent: AgentRecord, cause: str) -> Determination:
     # Nothing may block a quarantine — the operator must always be able to pull
     # an agent out of service. The only control is that they say why, because an
@@ -82,10 +93,12 @@ def _evaluate_rollback(agent: AgentRecord) -> Determination:
 
 def evaluate(
     operation: str,
-    agent: AgentRecord,
+    agent: AgentRecord | None,
     facts: dict,
     now: str,
     cause: str = "",
+    owner: str = "",
+    purpose: str = "",
 ) -> Determination:
     """Decide, deterministically, whether `operation` is permitted.
 
@@ -93,6 +106,10 @@ def evaluate(
     raising would make "the policy said no" and "the gate broke" the same event
     to a caller, and only one of those is a decision.
     """
+    if operation == "register":
+        # `agent` is None here: the agent does not exist yet, which is the whole
+        # point of registering it.
+        return _evaluate_register(owner, purpose)
     if operation == "promote":
         return _evaluate_promote(agent, facts, now)
     if operation == "quarantine":

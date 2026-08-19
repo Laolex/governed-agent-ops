@@ -25,6 +25,21 @@ population, and which versioned record the injected text came from.
 
 **Live:** https://gao-597227190850.us-central1.run.app
 
+## The four operations
+
+| operation | effect | gate |
+|---|---|---|
+| `register` | admits a new agent to the fleet | must name an owner and a purpose; refuses if the agent already exists |
+| `promote` | candidate → active | needs a current attestation and no open incident |
+| `quarantine` | → quarantined, refusing traffic | never blocked by a fact; the operator must state a cause |
+| `rollback` | pins the agent to its previous revision | needs a previous revision to exist |
+
+A rollback leaves the state alone and moves the *revision* — the agent stays in service, on
+different code — and the record names both revisions, because `active -> active` alone is
+indistinguishable from having done nothing. Afterwards there is no further known-good
+revision, so a second rollback is refused rather than rolling forward onto the code that was
+just withdrawn.
+
 ## Status
 
 Built and deployed for the All Things Agentic hackathon: the fleet state machine, the fleet
@@ -70,10 +85,28 @@ by identity or it does not.
 | `UNBOUND` | the record names what was used, but not which versioned record it was, or not what it was drawn from |
 | `NOT_CERTIFIED` | the chain is broken, a hash does not match, or the retrieval field is absent |
 
-`BOUND_UNCORROBORATED` is the honest one. The manifest is built by the executor's own call to
-Memory Bank, not by observing the agent's retrieval — so without a trace to compare against,
-"this is what was in scope" and "this is what the model saw" are different claims, and this
-verifier will not collapse them.
+`BOUND_UNCORROBORATED` is what a record earns on its own. The manifest is built by the
+executor's own call to Memory Bank, not by observing the agent's retrieval — so without a
+trace to compare against, "this is what was in scope" and "this is what the model saw" are
+different claims, and this verifier will not collapse them.
+
+`BOUND` is reachable, and reaching it means exporting Google's trace alongside the records:
+
+```bash
+GOOGLE_CLOUD_PROJECT=<project> python3 scripts/export_bundle.py --out bundle.json
+```
+
+The `call_llm` span carries the full prompt, and the injected memories sit in it inside a
+`<PAST_CONVERSATIONS>` block. Hashing those and comparing them to the manifest's
+`fact_sha256` values turns the gap into a checked property. Measured on live data: an
+exported bundle verifies **`BOUND`**; add one fact to the trace that the manifest does not
+list and it drops to **`UNBOUND — manifest and trace disagree: 3 recorded, 4 injected, 3 in
+common`**. A disagreement is reported, never smoothed into a pass.
+
+Traces are matched to records by their fact hashes, because nothing links the two: the record
+is ours and the trace is Google's, and that missing link is part of what this project is
+about. A trace is attached only on an exact match; a record that finds none is exported bare
+and verifies as `BOUND_UNCORROBORATED`.
 
 ## The ablation
 

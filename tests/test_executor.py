@@ -182,7 +182,8 @@ def test_the_record_carries_every_field_a_reader_needs():
     assert body["who"]["operator"] == "ola"
     assert body["what"]["operation"] == "promote"
     assert body["policy"]["revision"] == "GAO-2026.08"
-    assert body["result"] == {"state_before": "candidate", "state_after": "active"}
+    assert body["result"] == {"state_before": "candidate", "state_after": "active",
+                              "revision_before": "r7", "revision_after": "r7"}
 
 
 def test_the_retrieval_manifest_is_built_before_the_gate_runs():
@@ -245,3 +246,115 @@ def test_successive_decisions_form_one_verifiable_chain():
 
     assert verify_chain(ledger.read_all()) == (True, "")
     assert store.get("billing-reconciler").state == "quarantined"
+
+
+def test_registering_an_agent_adds_it_to_the_fleet_and_records_it():
+    store = InMemoryFleetStore({})
+    ledger = InMemoryLedger([])
+    executor = _executor(store, ledger)
+
+    result = executor.execute("register", "refund-router", operator="ola",
+                              facts={}, query="register the refund router",
+                              now=NOW, owner="platform-ops",
+                              purpose="Routes refund requests to the right ledger.")
+
+    assert result.determination.outcome == "PERMITTED"
+    assert store.get("refund-router").state == "candidate"
+    assert result.state_before == ""
+    assert result.state_after == "candidate"
+    assert len(ledger.read_all()) == 1
+
+
+def test_registering_an_agent_that_already_exists_is_refused_not_overwritten():
+    """An overwrite here would silently reassign ownership of a live agent."""
+    store = InMemoryFleetStore({})
+    store.put(CANDIDATE)
+    ledger = InMemoryLedger([])
+    executor = _executor(store, ledger)
+
+    result = executor.execute("register", "billing-reconciler", operator="ola",
+                              facts={}, query="register it", now=NOW,
+                              owner="someone-else", purpose="Something else.")
+
+    assert result.determination.outcome == "REFUSED"
+    assert store.get("billing-reconciler").owner == "platform-ops"
+
+
+def test_an_unknown_agent_still_escalates_for_every_other_operation():
+    """Registration is the only operation for which a missing agent is normal."""
+    ledger = InMemoryLedger([])
+    executor = _executor(InMemoryFleetStore({}), ledger)
+
+    result = executor.execute("promote", "no-such-agent", operator="ola",
+                              facts=CLEAN_FACTS, query="promote it", now=NOW)
+
+    assert result.determination.rule_hits == ["AGT-000"]
+
+
+def test_a_rollback_actually_moves_the_revision():
+    """The state is unchanged by design — the agent stays in service on
+    different code — so if the revision does not move, a rollback is a no-op
+    that records a success."""
+    store = InMemoryFleetStore({})
+    store.put(CANDIDATE.with_state("active"))
+    ledger = InMemoryLedger([])
+    executor = _executor(store, ledger)
+
+    result = executor.execute("rollback", "billing-reconciler", operator="ola",
+                              facts=CLEAN_FACTS, query="roll it back", now=NOW)
+
+    assert result.determination.outcome == "PERMITTED"
+    assert store.get("billing-reconciler").revision == "r6"
+    assert store.get("billing-reconciler").state == "active"
+
+
+def test_the_record_names_the_revision_a_rollback_moved_between():
+    """A rollback that records only 'active -> active' is indistinguishable in
+    the ledger from doing nothing at all."""
+    store = InMemoryFleetStore({})
+    store.put(CANDIDATE.with_state("active"))
+    ledger = InMemoryLedger([])
+    executor = _executor(store, ledger)
+
+    executor.execute("rollback", "billing-reconciler", operator="ola",
+                     facts=CLEAN_FACTS, query="roll it back", now=NOW)
+
+    result = ledger.read_all()[0]["body"]["result"]
+    assert result["revision_before"] == "r7"
+    assert result["revision_after"] == "r6"
+
+
+def test_a_second_rollback_is_refused_because_nothing_records_what_preceded():
+    store = InMemoryFleetStore({})
+    store.put(CANDIDATE.with_state("active"))
+    ledger = InMemoryLedger([])
+    executor = _executor(store, ledger)
+
+    executor.execute("rollback", "billing-reconciler", operator="ola",
+                     facts=CLEAN_FACTS, query="roll back", now=NOW)
+    result = executor.execute("rollback", "billing-reconciler", operator="ola",
+                              facts=CLEAN_FACTS, query="roll back again", now=NOW)
+
+    assert result.determination.outcome == "REFUSED"
+    assert result.determination.rule_hits == ["REV-001"]
+    assert store.get("billing-reconciler").revision == "r6"
+
+
+def test_a_registration_is_undone_when_the_record_cannot_be_written():
+    """Same rule as every other operation: a change that happened with nothing
+    recording it is worse than one that did not happen. This path calls
+    store.delete, which nothing else does — so without this test it would only
+    run for the first time in production, on the day the ledger broke."""
+    store = InMemoryFleetStore({})
+    ledger = RecordingLedger(fail_with=RuntimeError("firestore is down"))
+    executor = _executor(store, ledger)
+
+    with pytest.raises(LedgerUnavailable):
+        executor.execute("register", "refund-router", operator="ola", facts={},
+                         query="register it", now=NOW, owner="platform-ops",
+                         purpose="Routes refunds.")
+
+    from ops.store import UnknownAgent
+
+    with pytest.raises(UnknownAgent):
+        store.get("refund-router")

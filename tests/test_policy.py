@@ -123,3 +123,35 @@ def test_an_unknown_operation_is_refused_rather_than_permitted_by_default():
     determination = evaluate("delete_everything", CANDIDATE, CLEAN, now="2026-08-18")
     assert determination.outcome == "REFUSED"
     assert determination.rule_hits == ["OPS-001"]
+
+
+def test_registration_requires_an_owner():
+    """An agent nobody owns is an agent nobody will quarantine when it
+    misbehaves. Ownership is the one fact that makes the rest of the lifecycle
+    actionable, so it is checked at the only point where it can still be
+    refused cheaply."""
+    determination = evaluate("register", None, {}, now="2026-08-18",
+                             owner="", purpose="Reconciles invoices.")
+    assert determination.outcome == "REFUSED"
+    assert determination.rule_hits == ["OWN-001"]
+
+
+def test_registration_requires_a_purpose():
+    determination = evaluate("register", None, {}, now="2026-08-18",
+                             owner="platform-ops", purpose="   ")
+    assert determination.outcome == "REFUSED"
+    assert determination.rule_hits == ["PUR-001"]
+
+
+def test_a_complete_registration_is_permitted():
+    determination = evaluate("register", None, {}, now="2026-08-18",
+                             owner="platform-ops", purpose="Reconciles invoices.")
+    assert determination.outcome == "PERMITTED"
+
+
+def test_registration_does_not_require_an_attestation():
+    """A candidate has not been attested yet — that is what promotion is for.
+    Demanding one at registration would make the fleet unenterable."""
+    determination = evaluate("register", None, {}, now="2026-08-18",
+                             owner="platform-ops", purpose="Reconciles invoices.")
+    assert determination.rule_hits == []

@@ -197,3 +197,30 @@ def test_an_agent_with_no_facts_escalates_rather_than_being_promoted():
 
     assert result["determination"]["outcome"] == "ESCALATE"
     assert deps["store"].get("billing-reconciler").state == "candidate"
+
+
+def test_a_registration_proposal_carries_its_owner_and_purpose_to_the_executor():
+    """The two fields exist only on this operation, so a service layer that
+    dropped them would refuse every registration with OWN-001 and look like a
+    policy problem rather than a plumbing one."""
+    deps = _deps(_events(proposal={
+        "operation": "register", "agent_id": "refund-router", "cause": "",
+        "owner": "platform-ops", "purpose": "Routes refund requests."}))
+
+    result = handle_ask("register the refund router", facts=InMemoryFactsStore({}),
+                        now="2026-08-18T18:00:00Z", **deps)
+
+    assert result["determination"]["outcome"] == "PERMITTED"
+    assert deps["store"].get("refund-router").owner == "platform-ops"
+
+
+def test_a_rollback_proposal_reaches_the_executor():
+    deps = _deps(_events(proposal={"operation": "rollback",
+                                   "agent_id": "billing-reconciler", "cause": ""}))
+    deps["store"].put(CANDIDATE.with_state("active"))
+
+    result = handle_ask("roll it back", facts=CLEAN_FACTS,
+                        now="2026-08-18T18:00:00Z", **deps)
+
+    assert result["determination"]["outcome"] == "PERMITTED"
+    assert deps["store"].get("billing-reconciler").revision == "r6"

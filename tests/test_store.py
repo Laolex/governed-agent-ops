@@ -146,3 +146,44 @@ def test_the_firestore_store_survives_serialisation():
     restored = cloudpickle.loads(cloudpickle.dumps(FirestoreFleetStore()))
 
     assert isinstance(restored, FirestoreFleetStore)
+
+
+def test_a_rollback_moves_the_agent_onto_its_previous_revision():
+    rolled = CANDIDATE.rolled_back()
+
+    assert rolled.revision == "r6"
+    assert CANDIDATE.revision == "r7", "the original must not mutate"
+
+
+def test_after_a_rollback_there_is_no_further_known_good_revision():
+    """r6 is now live and nothing records what preceded it, so a second rollback
+    has nowhere to go. Leaving `previous_revision` pointing at r7 would let a
+    'rollback' roll *forward* onto the revision we just backed out of."""
+    rolled = CANDIDATE.rolled_back()
+
+    assert rolled.previous_revision is None
+
+
+def test_rolling_back_with_no_previous_revision_is_refused_by_the_record():
+    from ops.store import AgentRecord
+
+    pinned = AgentRecord("a", "active", "o", "p", "r1", None)
+    with pytest.raises(ValueError):
+        pinned.rolled_back()
+
+
+def test_deleting_removes_an_agent(harness):
+    store = harness.open()
+    store.put(CANDIDATE)
+
+    store.delete("billing-reconciler")
+
+    with pytest.raises(UnknownAgent):
+        store.get("billing-reconciler")
+
+
+def test_deleting_an_agent_that_is_not_there_is_not_an_error(harness):
+    """The only caller is the registration rollback path, which runs when a
+    record could not be written. It must not raise a second exception on top of
+    the one it is already handling."""
+    harness.open().delete("never-registered")

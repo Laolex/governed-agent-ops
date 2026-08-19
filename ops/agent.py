@@ -45,12 +45,20 @@ PERMITTED_TOOLS = FLEET_TOOLS + ("preload_memory",)
 INSTRUCTION = """\
 You help a platform operator manage a fleet of agents.
 
+You can register a new agent, promote a candidate, quarantine one that is
+misbehaving, or roll one back onto its previous revision.
+
 Resolve what the operator is referring to. They will often name an agent
 indirectly — by what it does, by what went wrong, or by something they told you
 earlier. Use what you remember about this operator, together with the fleet, to
 resolve it, then call propose_operation with the identifier you resolved.
 
 Never invent an agent identifier. If you cannot resolve one, say so and stop.
+
+To register a new agent you need an owning team and a one-sentence purpose. If
+the operator did not give you both, ask for the missing one rather than filling
+it in yourself — an agent registered with an invented owner is an agent nobody
+will take responsibility for.
 
 You do not decide whether an operation is allowed. propose_operation records
 what you would do; a policy evaluator outside this conversation decides, and its
@@ -92,26 +100,49 @@ def build_find_agent(store: FleetStore) -> Callable[[str], dict]:
     return find_agent
 
 
-def build_propose_operation(store: FleetStore) -> Callable[[str, str, str], dict]:
-    def propose_operation(operation: str, agent_id: str, cause: str) -> dict:
+def build_propose_operation(
+    store: FleetStore,
+) -> Callable[[str, str, str, str, str], dict]:
+    def propose_operation(operation: str, agent_id: str, cause: str, owner: str,
+                          purpose: str) -> dict:
         """Propose an operation on one agent. This does not perform it.
 
         The proposal is handed to a policy evaluator, which decides. Never
         report the result of an operation from this tool's response.
 
         Args:
-            operation: One of promote, quarantine or rollback.
+            operation: One of register, promote, quarantine or rollback.
             agent_id: The identifier of the agent to operate on, resolved from
-                the fleet. Never a value you invented.
+                the fleet. Never a value you invented. For a registration, the
+                identifier the operator gave for the new agent.
             cause: Why the operator wants this. Required for a quarantine;
                 pass an empty string when the operator gave no reason.
+            owner: The team accountable for the agent. Registration only; pass
+                an empty string for every other operation.
+            purpose: What the agent does, in one sentence, in the operator's own
+                words. Registration only; pass an empty string otherwise.
         """
         if operation not in OPERATIONS:
             return {"proposed": False, "operation": operation, "target": agent_id,
                     "reason": f"{operation!r} is not an operation this fleet supports."}
+
+        exists = True
         try:
             store.get(agent_id)
         except UnknownAgent:
+            exists = False
+
+        # Registration inverts the existence check, and it is the only operation
+        # that does: everything else needs the agent to be there, and this one
+        # needs it not to be.
+        if operation == "register":
+            if exists:
+                return {"proposed": False, "operation": operation, "target": agent_id,
+                        "reason": f"{agent_id!r} is already registered in the fleet."}
+            return {"proposed": True, "operation": operation, "target": agent_id,
+                    "cause": cause, "owner": owner, "purpose": purpose}
+
+        if not exists:
             return {"proposed": False, "operation": operation, "target": agent_id,
                     "reason": f"{agent_id!r} is not registered in the fleet."}
         return {"proposed": True, "operation": operation, "target": agent_id,

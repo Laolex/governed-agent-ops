@@ -10,7 +10,7 @@ import datetime
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -26,6 +26,31 @@ ENGINE_ID = os.environ.get("GAO_ENGINE_ID", "")
 CONSOLE = Path(__file__).resolve().parent.parent / "console" / "index.html"
 
 app = FastAPI(title="Governed Agent Operations")
+
+
+# Dependencies rather than inline constructors. Building a Firestore client
+# inside each endpoint made this layer untestable — there was no way to exercise
+# a route without credentials and a live database, so the HTTP surface was the
+# only part of the project with no tests at all. These are overridable, which is
+# the entire reason they exist.
+def get_store():
+    return FirestoreFleetStore()
+
+
+def get_ledger():
+    return FirestoreLedger()
+
+
+def get_facts():
+    return FirestoreFactsStore()
+
+
+def get_bank():
+    return VertexMemoryBank(PROJECT, LOCATION, ENGINE_ID)
+
+
+def get_agent():
+    return VertexAgentClient(PROJECT, LOCATION, ENGINE_ID)
 
 
 def _now() -> str:
@@ -60,42 +85,43 @@ class VertexAgentClient:
 
 
 @app.get("/api/fleet")
-def fleet() -> dict:
-    store = FirestoreFleetStore()
+def fleet(store=Depends(get_store)) -> dict:
     return {"agents": [a.to_dict() for a in store.list()]}
 
 
 @app.post("/api/ask")
-def ask(request: AskRequest) -> dict:
+def ask(request: AskRequest, store=Depends(get_store), ledger=Depends(get_ledger),
+        facts=Depends(get_facts), bank=Depends(get_bank),
+        agent=Depends(get_agent)) -> dict:
     if not ENGINE_ID:
         # Named explicitly: an unconfigured engine must never read as a failure
-        # to decide.
+        # to decide. A judge opening the console on a misconfigured deploy
+        # should see a configuration error, not a system that appears to refuse.
         raise HTTPException(503, "GAO_ENGINE_ID is not configured")
 
-    result = handle_ask(
+    return handle_ask(
         request.message,
-        agent=VertexAgentClient(PROJECT, LOCATION, ENGINE_ID),
-        store=FirestoreFleetStore(),
-        ledger=FirestoreLedger(),
-        bank=VertexMemoryBank(PROJECT, LOCATION, ENGINE_ID),
-        facts=FirestoreFactsStore(),
+        agent=agent,
+        store=store,
+        ledger=ledger,
+        bank=bank,
+        facts=facts,
         now=_now(),
         operator=request.operator,
         scope={"app_name": ENGINE_ID, "user_id": request.operator},
     )
-    return result
 
 
 @app.get("/api/decisions")
-def decisions() -> dict:
-    entries = FirestoreLedger().read_all()
+def decisions(ledger=Depends(get_ledger)) -> dict:
+    entries = ledger.read_all()
     ok, reason = verify_chain(entries)
     return {"decisions": entries, "chain_ok": ok, "chain_reason": reason}
 
 
 @app.get("/api/decisions/{record_hash}")
-def decision(record_hash: str) -> dict:
-    for entry in FirestoreLedger().read_all():
+def decision(record_hash: str, ledger=Depends(get_ledger)) -> dict:
+    for entry in ledger.read_all():
         if entry["hash"] == record_hash:
             return entry
     raise HTTPException(404, "no such record")

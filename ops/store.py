@@ -41,6 +41,18 @@ class AgentRecord:
     def with_id(self, agent_id: str) -> "AgentRecord":
         return replace(self, agent_id=agent_id)
 
+    def rolled_back(self) -> "AgentRecord":
+        """Return this agent pinned to its previous revision.
+
+        `previous_revision` is cleared rather than set to the revision we just
+        backed out of: nothing records what preceded r6, so a second rollback
+        has nowhere to go. Pointing it back at r7 would let a "rollback" roll
+        *forward* onto the revision that was just withdrawn.
+        """
+        if not self.previous_revision:
+            raise ValueError(f"{self.agent_id!r} has no previous revision")
+        return replace(self, revision=self.previous_revision, previous_revision=None)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "agent_id": self.agent_id,
@@ -66,6 +78,7 @@ class AgentRecord:
 class FleetStore(Protocol):
     def get(self, agent_id: str) -> AgentRecord: ...
     def put(self, agent: AgentRecord) -> None: ...
+    def delete(self, agent_id: str) -> None: ...
     def list(self) -> Iterable[AgentRecord]: ...
 
 
@@ -84,6 +97,12 @@ class InMemoryFleetStore:
 
     def put(self, agent: AgentRecord) -> None:
         self._data[agent.agent_id] = agent.to_dict()
+
+    def delete(self, agent_id: str) -> None:
+        # Absent is not an error. The only caller is the registration rollback
+        # path, which is already handling a failure and must not raise a second
+        # exception on top of the first.
+        self._data.pop(agent_id, None)
 
     def list(self) -> Iterable[AgentRecord]:
         return [AgentRecord.from_dict(d) for d in self._data.values()]
@@ -126,6 +145,11 @@ class FirestoreFleetStore:
 
     def put(self, agent: AgentRecord) -> None:
         self._collection.document(agent.agent_id).set(agent.to_dict())
+
+    def delete(self, agent_id: str) -> None:
+        # Firestore's delete is already idempotent; kept explicit so the two
+        # implementations answer the contract test the same way.
+        self._collection.document(agent_id).delete()
 
     def list(self) -> Iterable[AgentRecord]:
         return [AgentRecord.from_dict(d.to_dict()) for d in self._collection.stream()]

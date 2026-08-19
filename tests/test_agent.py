@@ -92,7 +92,7 @@ def test_propose_operation_returns_a_proposal_and_changes_nothing():
     store = _store()
     propose = build_propose_operation(store)
 
-    proposal = propose("promote", "billing-reconciler", "")
+    proposal = propose("promote", "billing-reconciler", "", "", "")
 
     assert proposal["proposed"] is True
     assert proposal["operation"] == "promote"
@@ -105,7 +105,7 @@ def test_propose_operation_refuses_an_agent_it_cannot_find():
     not exist would put a fabricated identifier into the decision path."""
     propose = build_propose_operation(_store())
 
-    proposal = propose("promote", "no-such-agent", "")
+    proposal = propose("promote", "no-such-agent", "", "", "")
 
     assert proposal["proposed"] is False
     assert "not registered" in proposal["reason"]
@@ -114,7 +114,7 @@ def test_propose_operation_refuses_an_agent_it_cannot_find():
 def test_propose_operation_will_not_propose_an_unknown_operation():
     propose = build_propose_operation(_store())
 
-    proposal = propose("delete_everything", "billing-reconciler", "")
+    proposal = propose("delete_everything", "billing-reconciler", "", "", "")
 
     assert proposal["proposed"] is False
 
@@ -137,7 +137,7 @@ def test_a_tool_response_never_carries_a_determination():
     """The gate decides. A tool that returned an outcome would let the model
     report a determination nobody made."""
     propose = build_propose_operation(_store())
-    proposal = propose("promote", "billing-reconciler", "")
+    proposal = propose("promote", "billing-reconciler", "", "", "")
     assert "outcome" not in proposal
     assert "rule_hits" not in proposal
 
@@ -159,3 +159,49 @@ def test_memory_retrieval_is_not_counted_as_a_permitted_write_tool():
     assert set(FLEET_TOOLS) == {"read_fleet", "find_agent", "propose_operation"}
     assert "preload_memory" in PERMITTED_TOOLS
     assert "preload_memory" not in FLEET_TOOLS
+
+
+def test_a_registration_can_be_proposed_with_its_owner_and_purpose():
+    """Registration needs two facts no other operation does. Without them on the
+    tool signature the agent has no way to carry them, and the operation is
+    unreachable however well the executor implements it."""
+    from ops.agent import build_propose_operation
+
+    propose = build_propose_operation(_store())
+
+    proposal = propose("register", "refund-router", "", "platform-ops",
+                       "Routes refund requests to the right ledger.")
+
+    assert proposal["proposed"] is True
+    assert proposal["owner"] == "platform-ops"
+    assert proposal["purpose"].startswith("Routes refund")
+
+
+def test_registering_an_existing_agent_is_not_proposed():
+    from ops.agent import build_propose_operation
+
+    propose = build_propose_operation(_store())
+
+    proposal = propose("register", "billing-reconciler", "", "platform-ops", "Anything.")
+
+    assert proposal["proposed"] is False
+    assert "already registered" in proposal["reason"]
+
+
+def test_a_non_registration_still_requires_the_agent_to_exist():
+    """Registration inverts the existence check; nothing else does."""
+    from ops.agent import build_propose_operation
+
+    propose = build_propose_operation(_store())
+
+    assert propose("rollback", "no-such-agent", "", "", "")["proposed"] is False
+
+
+def test_a_rollback_can_be_proposed():
+    from ops.agent import build_propose_operation
+
+    proposal = build_propose_operation(_store())("rollback", "billing-reconciler",
+                                                 "", "", "")
+
+    assert proposal["proposed"] is True
+    assert proposal["operation"] == "rollback"

@@ -107,6 +107,8 @@ def handle_ask(
         query=message,
         now=now,
         cause=proposal.get("cause", ""),
+        owner=proposal.get("owner", ""),
+        purpose=proposal.get("purpose", ""),
     )
 
     return {

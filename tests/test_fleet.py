@@ -62,3 +62,21 @@ def test_an_unknown_state_is_refused_rather_than_treated_as_new():
 def test_an_unknown_operation_is_refused():
     with pytest.raises(InvalidTransition):
         transition("candidate", "delete_everything")
+
+
+def test_registration_produces_a_candidate_from_nothing():
+    """Registration is the one operation with no current state: the agent does
+    not exist until it succeeds. Modelling it as a transition from the empty
+    string keeps the machine total rather than adding a second entry point that
+    bypasses it."""
+    assert transition("", "register") == "candidate"
+
+
+def test_registering_an_agent_that_already_exists_is_refused():
+    for state in ("candidate", "active", "quarantined", "retired"):
+        with pytest.raises(InvalidTransition):
+            transition(state, "register")
+
+
+def test_register_is_one_of_the_operations():
+    assert "register" in OPERATIONS

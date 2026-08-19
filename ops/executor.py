@@ -53,8 +53,12 @@ class Executor:
         self._scope = scope
 
     def execute(self, operation: str, agent_id: str, *, operator: str, facts: dict,
-                query: str, now: str, cause: str = "") -> Result:
+                query: str, now: str, cause: str = "", owner: str = "",
+                purpose: str = "") -> Result:
         manifest = build_manifest(self._bank, self._scope, query, now)
+
+        if operation == "register":
+            return self._register(agent_id, operator, manifest, now, owner, purpose)
 
         try:
             agent = self._store.get(agent_id)
@@ -85,11 +89,18 @@ class Executor:
                 state_before=agent.state, state_after=agent.state,
             )
 
-        self._store.put(agent.with_state(destination))
+        # A rollback leaves the state alone and moves the revision instead: the
+        # agent stays in service, on different code. Recording only
+        # "active -> active" would make it indistinguishable from doing nothing.
+        updated = (agent.rolled_back() if operation == "rollback"
+                   else agent.with_state(destination))
+        self._store.put(updated)
         try:
             return self._record(determination, operation, agent_id, operator,
                                 manifest, now, cause,
-                                state_before=agent.state, state_after=destination)
+                                state_before=agent.state, state_after=destination,
+                                revision_before=agent.revision,
+                                revision_after=updated.revision)
         except ChainForked:
             # The ledger already retried at the re-read tip and still lost. The
             # operation happened; undoing it here would make concurrency into a
@@ -101,9 +112,49 @@ class Executor:
                 f"record could not be written, state change undone: {failure}"
             ) from failure
 
+    def _register(self, agent_id: str, operator: str, manifest: RetrievalManifest,
+                  now: str, owner: str, purpose: str) -> Result:
+        """Admit a new agent. The only operation for which a missing agent is
+        normal — and the only one where an existing agent is the error, because
+        an overwrite here would silently reassign ownership of a live agent."""
+        try:
+            self._store.get(agent_id)
+        except UnknownAgent:
+            pass
+        else:
+            return self._record(
+                Determination("REFUSED", ["AGT-001"],
+                              f"{agent_id!r} is already registered."),
+                "register", agent_id, operator, manifest, now, "",
+                state_before="", state_after="")
+
+        determination = evaluate("register", None, {}, now=now,
+                                 owner=owner, purpose=purpose)
+        if determination.outcome != "PERMITTED":
+            return self._record(determination, "register", agent_id, operator,
+                                manifest, now, "", state_before="", state_after="")
+
+        destination = transition("", "register")
+        self._store.put(AgentRecord(agent_id=agent_id, state=destination, owner=owner,
+                                    purpose=purpose, revision="r1",
+                                    previous_revision=None))
+        try:
+            return self._record(determination, "register", agent_id, operator,
+                                manifest, now, "", state_before="",
+                                state_after=destination, revision_before="",
+                                revision_after="r1")
+        except ChainForked:
+            raise
+        except Exception as failure:
+            self._store.delete(agent_id)
+            raise LedgerUnavailable(
+                f"record could not be written, registration undone: {failure}"
+            ) from failure
+
     def _record(self, determination: Determination, operation: str, agent_id: str,
                 operator: str, manifest: RetrievalManifest, now: str, cause: str,
-                state_before: str, state_after: str) -> Result:
+                state_before: str, state_after: str, revision_before: str = "",
+                revision_after: str = "") -> Result:
         body = {
             "who": {"operator": operator, "agent": "ops-agent"},
             "what": {"operation": operation, "target": agent_id, "cause": cause},
@@ -115,7 +166,9 @@ class Executor:
             },
             "policy": {"revision": determination.policy_revision},
             "retrieval": manifest.to_dict(),
-            "result": {"state_before": state_before, "state_after": state_after},
+            "result": {"state_before": state_before, "state_after": state_after,
+                       "revision_before": revision_before,
+                       "revision_after": revision_after},
         }
         digest = self._ledger.append(body)
         return Result(determination, digest, manifest, state_before, state_after)

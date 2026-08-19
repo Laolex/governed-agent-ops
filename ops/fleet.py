@@ -10,12 +10,17 @@ from __future__ import annotations
 
 STATES = ("candidate", "active", "quarantined", "retired")
 
-OPERATIONS = ("promote", "quarantine", "rollback")
+OPERATIONS = ("register", "promote", "quarantine", "rollback")
 
 # (current state, operation) -> destination state. Absence means "not permitted";
 # there is no default branch, so a pair that is not listed here is refused rather
 # than silently treated as a no-op.
 TRANSITIONS: dict[tuple[str, str], str] = {
+    # Registration is the one operation with no current state — the agent does
+    # not exist until it succeeds. Modelling it as a transition from the empty
+    # string keeps the machine total, rather than adding a second entry point
+    # that writes to the fleet without passing through here.
+    ("", "register"): "candidate",
     ("candidate", "promote"): "active",
     ("candidate", "quarantine"): "quarantined",
     ("active", "quarantine"): "quarantined",
