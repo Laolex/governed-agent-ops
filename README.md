@@ -128,6 +128,13 @@ inline), plus a two-record comparison that pins decisions and diffs their retrie
 The divergence and the record-that-catches-it are both visible in the browser, not only in
 scripts.
 
+The fleet pane separately evaluates release readiness for the exact revision currently pinned
+to each agent. `READY` requires an active agent, a current attestation, no open incident, and
+passing evidence for the tool contract, refusal path, and rollback smoke check. Evidence from a
+previous revision does not transfer, and missing evidence is `UNKNOWN`, not a pass. The endpoint
+is read-only: `GET /api/fleet/{agent_id}/release-readiness` cannot operate the fleet or append a
+decision record.
+
 ## Verifying a record without us
 
 The verifier is standalone: no credentials, no network, no dependencies beyond the standard
