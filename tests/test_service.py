@@ -179,6 +179,19 @@ def test_the_console_is_served_from_the_same_origin_as_the_api(client):
     assert "text/html" in response.headers["content-type"]
 
 
+def test_the_public_build_article_is_served_with_its_evidence(client):
+    http, _, _ = client
+
+    article = http.get("/build-article")
+    image = http.get("/build-article-assets/retrieval-comparison.png")
+
+    assert article.status_code == 200
+    assert "purpose of entering the All Things Agentic Hackathon" in article.text
+    assert "The memory that changed an agent's decision" in article.text
+    assert image.status_code == 200
+    assert image.headers["content-type"] == "image/png"
+
+
 def test_an_agent_outage_is_a_502_not_a_null_determination(client):
     """A 429 from the model must not reach the operator as 'nothing was
     proposed'. The console renders a null determination as 'the turn proposed no

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>The memory that changed an agent's decision | Governed Agent Operations</title>
+  <meta name="description" content="How Governed Agent Operations binds every fleet decision to the versioned memory population it was made from.">
+  <meta property="og:title" content="The memory that changed an agent's decision">
+  <meta property="og:description" content="One memory changed an agent's target. The decision record explains why.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://gao-597227190850.us-central1.run.app/build-article">
+  <meta property="og:image" content="https://gao-597227190850.us-central1.run.app/build-article-assets/fleet-and-governed-action.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1116;
+      --surface: #151a21;
+      --line: #2b3441;
+      --ink: #e6eaf0;
+      --dim: #a5b0bf;
+      --accent: #7aa2f7;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.72 var(--sans);
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 4px; }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+    .nav {
+      min-height: 64px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0 28px;
+      font-size: 14px;
+    }
+    .nav strong { letter-spacing: -0.02em; }
+    .nav a { color: var(--dim); text-decoration: none; }
+    .nav a:hover { color: var(--ink); }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+      align-items: end;
+      gap: clamp(40px, 5vw, 72px);
+      min-height: min(760px, calc(100dvh - 64px));
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: clamp(64px, 9vw, 112px) 28px 64px;
+    }
+    .hero-copy { max-width: 920px; }
+    .event-note {
+      max-width: 620px;
+      margin: 0 0 28px;
+      color: var(--accent);
+      font: 13px/1.5 var(--mono);
+    }
+    h1 {
+      max-width: 920px;
+      margin: 0;
+      font-size: clamp(46px, 3.9vw, 56px);
+      line-height: .99;
+      letter-spacing: -0.055em;
+      font-weight: 650;
+    }
+    h1 span { display: block; }
+    .dek {
+      max-width: 560px;
+      margin: 28px 0 0;
+      color: var(--dim);
+      font-size: clamp(18px, 2vw, 23px);
+      line-height: 1.48;
+    }
+    .hero-fact {
+      border-left: 2px solid var(--accent);
+      padding: 8px 0 8px 22px;
+      color: var(--dim);
+      font: 14px/1.7 var(--mono);
+    }
+    .hero-fact strong { display: block; color: var(--ink); font-size: 30px; }
+    .article-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    figure { margin: 0; }
+    figcaption { margin-top: 12px; color: var(--dim); font-size: 13px; }
+    .lead-visual {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 28px clamp(96px, 12vw, 176px);
+    }
+    article { max-width: 1160px; margin: 0 auto; padding: 0 28px 120px; }
+    .chapter {
+      display: grid;
+      grid-template-columns: minmax(180px, 280px) minmax(0, 680px);
+      justify-content: space-between;
+      gap: 56px;
+      padding: 72px 0;
+      border-top: 1px solid var(--line);
+    }
+    .chapter h2 {
+      margin: 0;
+      font-size: clamp(25px, 3vw, 39px);
+      line-height: 1.12;
+      letter-spacing: -0.035em;
+      font-weight: 620;
+    }
+    .prose p { margin: 0 0 24px; color: #c9d3e0; }
+    .prose p:last-child { margin-bottom: 0; }
+    code {
+      color: var(--accent);
+      font: .9em/1.5 var(--mono);
+      overflow-wrap: anywhere;
+    }
+    .evidence {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 24px;
+      padding: 72px 0 104px;
+      border-top: 1px solid var(--line);
+    }
+    .evidence figure:first-child { grid-column: 1 / -1; }
+    .architecture { padding: 72px 0 104px; border-top: 1px solid var(--line); }
+    .architecture h2 { max-width: 700px; margin: 0 0 32px; font-size: clamp(30px, 4vw, 52px); line-height: 1.08; letter-spacing: -0.04em; }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 620;
+    }
+    .links a:first-child { background: var(--accent); border-color: var(--accent); color: #0b0e13; }
+    .links a:hover { border-color: var(--accent); }
+    .links a:active { transform: translateY(1px); }
+    footer { border-top: 1px solid var(--line); padding: 32px 28px; color: var(--dim); font-size: 13px; }
+    footer div { max-width: 1160px; margin: 0 auto; }
+    @media (max-width: 800px) {
+      .nav { padding: 0 18px; }
+      .hero { grid-template-columns: 1fr; min-height: auto; padding: 64px 18px 48px; gap: 40px; }
+      h1 { font-size: clamp(42px, 13vw, 64px); }
+      .lead-visual { padding: 0 18px 96px; }
+      article { padding: 0 18px 80px; }
+      .chapter { grid-template-columns: 1fr; gap: 28px; padding: 56px 0; }
+      .evidence { grid-template-columns: 1fr; padding: 56px 0 80px; }
+      .evidence figure:first-child { grid-column: auto; }
+      .architecture { padding: 56px 0 80px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="Primary">
+    <strong>Governed Agent Operations</strong>
+    <a href="/">Open the live console</a>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="event-note">I created this article for the purpose of entering the All Things Agentic Hackathon.</p>
+      <h1><span>The memory that changed</span><span>an agent's decision</span></h1>
+      <p class="dek">One memory changed the target. The decision record explains exactly why.</p>
+    </div>
+    <div class="hero-fact" aria-label="Measured change">
+      <strong>3 to 4</strong>
+      memories in scope<br>
+      same request, code and policy
+    </div>
+  </header>
+
+  <figure class="lead-visual">
+    <img class="article-image" src="/build-article-assets/fleet-and-governed-action.png" width="1600" height="1216" alt="Governed Agent Operations console showing a permitted fleet promotion and its retrieval-bound decision record">
+    <figcaption>The live console. Gemini proposes; deterministic policy decides; the executor records.</figcaption>
+  </figure>
+
+  <article>
+    <section class="chapter">
+      <h2>The answer moved while the request stayed still.</h2>
+      <div class="prose">
+        <p>An operations agent received the same request twice: quarantine whatever started failing after last night's configuration change. The operator, request bytes, code and policy were unchanged.</p>
+        <p>Between the runs, an unrelated process wrote one correction into shared memory. The first run resolved the request to <code>invoice-classifier</code>. The second resolved it to <code>billing-reconciler</code>.</p>
+        <p>That movement is ordinary for a memory-using agent. It is also difficult to investigate after the fact.</p>
+      </div>
+    </section>
+
+    <section class="chapter">
+      <h2>The missing boundary is identity, version and population.</h2>
+      <div class="prose">
+        <p>Google's trace preserved the text injected into the prompt. The captured record did not name which Memory Bank resource supplied that text, which revision was current, or how many other memories were in scope and lost the top-k cut.</p>
+        <p>Governed Agent Operations records that boundary. The ADK agent reads the fleet and proposes an operation, but it has no write tool. A separate deterministic executor applies policy, performs the transition and appends a decision record.</p>
+        <p>Before writing, the executor constructs a retrieval manifest with the scope, population size, excluded count, memory identities, revision identities, content hashes and distances.</p>
+      </div>
+    </section>
+
+    <section class="evidence" aria-label="Evidence from the live deployment">
+      <figure>
+        <img class="article-image" src="/build-article-assets/retrieval-comparison.png" width="712" height="304" loading="lazy" alt="Two live decision records comparing memory populations of four and three">
+        <figcaption>One new revision entered the selection. The population changed and one memory was excluded.</figcaption>
+      </figure>
+      <figure>
+        <img class="article-image" src="/build-article-assets/verifier-ablation.png" width="712" height="252" loading="lazy" alt="Four-arm ablation showing evidence classes weakening when retrieval bindings are removed">
+        <figcaption>The verifier weakens or refuses certification when the binding is stripped.</figcaption>
+      </figure>
+      <div class="prose">
+        <p>The first decision drew from three memories, selected all three and excluded none. The second drew from four, selected three and excluded one. The newly written revision entered at the closest distance and displaced the previous third result.</p>
+        <p>The record explains the changed target without pretending the model itself is deterministic.</p>
+      </div>
+    </section>
+
+    <section class="chapter">
+      <h2>The verifier refuses to overstate what the evidence proves.</h2>
+      <div class="prose">
+        <p>A record with identities, population and a valid hash chain is <code>BOUND_UNCORROBORATED</code>. It says what the executor observed in scope.</p>
+        <p>It becomes <code>BOUND</code> only when an exported Google trace independently agrees with the manifest's content hashes. If trace and manifest disagree, the verifier reports <code>UNBOUND</code>. It does not average disagreement into a confidence score.</p>
+        <p>A four-arm ablation tests whether that distinction is load-bearing. Remove revision identities and the result becomes <code>UNBOUND</code>. Remove population and it becomes <code>UNBOUND</code>. Remove the manifest and it becomes <code>NOT_CERTIFIED</code>.</p>
+      </div>
+    </section>
+
+    <section class="architecture">
+      <h2>Two engines. One deterministic write boundary.</h2>
+      <figure>
+        <img class="article-image" src="/build-article-assets/architecture.png" width="920" height="560" loading="lazy" alt="Architecture diagram connecting the operator console, ADK agent, deterministic executor, Memory Bank, Firestore and standalone verifier">
+      </figure>
+      <div class="prose" style="margin-top:32px;max-width:680px">
+        <p>The deployed system uses Gemini 3.5 Flash through Google ADK on Vertex AI Agent Engine. Cloud Run serves the console and API. Firestore stores fleet state, operational facts and the transactionally appended hash chain. Memory Bank supplies persistent context, while Cloud Trace supplies independent prompt evidence for the strongest verification class.</p>
+        <p>The narrow claim matters: the platform trace shows the text that reached the prompt. Governed Agent Operations additionally records which versioned memory it came from, what population it was selected from and what lost.</p>
+      </div>
+      <div class="links">
+        <a href="/">Try the live console</a>
+        <a href="https://github.com/Laolex/governed-agent-ops">Read the source</a>
+      </div>
+    </section>
+  </article>
+
+  <footer><div>Governed Agent Operations. Built for the All Things Agentic Hackathon.</div></footer>
+</body>
+</html>
