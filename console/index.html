@@ -26,6 +26,13 @@
   .state.active{color:var(--ok);border-color:#20492c}
   .state.quarantined{color:var(--no);border-color:#5a2027}
   .agent small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
+  .readiness{margin-top:7px;padding:7px 9px;border-left:2px solid var(--line);
+             background:#11161d;font-size:11px;color:var(--dim)}
+  .readiness b{font-family:var(--mono);font-size:11px;margin-right:6px}
+  .readiness.READY{border-color:var(--ok)} .readiness.READY b{color:var(--ok)}
+  .readiness.BLOCKED{border-color:var(--no)} .readiness.BLOCKED b{color:var(--no)}
+  .readiness.UNKNOWN{border-color:var(--warn)} .readiness.UNKNOWN b{color:var(--warn)}
+  .readiness span{display:block;margin-top:3px;line-height:1.35}
   form{display:flex;gap:8px;margin-bottom:14px}
   input{flex:1;background:#0b0e13;border:1px solid var(--line);border-radius:7px;
         padding:9px 11px;color:var(--ink);font:inherit}
@@ -125,12 +132,25 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'
 
 async function loadFleet(){
   const r = await fetch('/api/fleet').then(r => r.json());
+  const readiness = await Promise.all(r.agents.map(async a => {
+    try {
+      const response = await fetch('/api/fleet/' + encodeURIComponent(a.agent_id) + '/release-readiness');
+      if (!response.ok) throw new Error('readiness unavailable');
+      return await response.json();
+    } catch (_error) {
+      return {status:'UNKNOWN', blocking_condition:'Release evidence could not be read.'};
+    }
+  }));
   $('fleet').className = '';
-  $('fleet').innerHTML = r.agents.map(a => `
+  $('fleet').innerHTML = r.agents.map((a, i) => `
     <div class="agent">
       <b>${esc(a.agent_id)}</b><span class="state ${esc(a.state)}">${esc(a.state)}</span>
       <small>${esc(a.purpose)}</small>
       <small>${esc(a.owner)} · ${esc(a.revision)}</small>
+      <div class="readiness ${esc(readiness[i].status)}">
+        <b>${esc(readiness[i].status)}</b> for ${esc(a.revision)}
+        <span>${esc(readiness[i].blocking_condition)}</span>
+      </div>
     </div>`).join('') || '<div class="empty">The fleet is empty.</div>';
 }
 

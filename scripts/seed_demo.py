@@ -52,7 +52,27 @@ FLEET = [
 ]
 
 FACTS = {
-    "billing-reconciler": {"attestation": {"expires_at": "2026-12-01"}, "incidents": []},
+    "billing-reconciler": {
+        "attestation": {"expires_at": "2026-12-01"},
+        "incidents": [],
+        # Readiness belongs to the exact code revision. These checks make r7
+        # READY once it is promoted; they must not transfer if it rolls back
+        # to r6.
+        "runtime_evidence": [
+            {
+                "agent_revision": "r7",
+                "check_id": check,
+                "status": "PASS",
+                "observed_at": "2026-08-20T20:00:00Z",
+                "evidence_sha256": digest,
+            }
+            for check, digest in (
+                ("tool-contract", "a" * 64),
+                ("refusal-path", "b" * 64),
+                ("rollback-smoke", "c" * 64),
+            )
+        ],
+    },
     # dunning-writer's attestation exists and has lapsed — a failed condition,
     # which the gate must refuse rather than escalate.
     "dunning-writer": {"attestation": {"expires_at": "2026-07-01"}, "incidents": []},

@@ -20,6 +20,7 @@ from ops.facts import FirestoreFactsStore
 from ops.ledger import FirestoreLedger, verify_chain
 from ops.retrieval import VertexMemoryBank
 from ops.store import FirestoreFleetStore
+from ops.store import UnknownAgent
 
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "sdl-cinema-2026")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
@@ -95,6 +96,22 @@ class VertexAgentClient:
 @app.get("/api/fleet")
 def fleet(store=Depends(get_store)) -> dict:
     return {"agents": [a.to_dict() for a in store.list()]}
+
+
+@app.get("/api/fleet/{agent_id}/release-readiness")
+def release_readiness(
+    agent_id: str,
+    store=Depends(get_store),
+    facts=Depends(get_facts),
+) -> dict:
+    """Read-only readiness for the exact revision currently in the fleet."""
+    from ops.readiness import evaluate_release_readiness
+
+    try:
+        agent = store.get(agent_id)
+    except UnknownAgent as error:
+        raise HTTPException(404, "no such agent") from error
+    return evaluate_release_readiness(agent, facts.for_agent(agent_id), now=_now()).to_dict()
 
 
 @app.post("/api/ask")

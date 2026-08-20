@@ -83,6 +83,33 @@ def test_the_fleet_endpoint_returns_every_agent(client):
     assert response.json()["agents"][0]["agent_id"] == "billing-reconciler"
 
 
+def test_release_readiness_is_version_scoped_and_read_only(client):
+    http, store, ledger = client
+    store.put(CANDIDATE.with_state("active"))
+    service.app.dependency_overrides[service.get_facts] = lambda: InMemoryFactsStore({
+        "billing-reconciler": {
+            **CLEAN,
+            "runtime_evidence": [
+                {"agent_revision": "r7", "check_id": check, "status": "PASS",
+                 "observed_at": "2026-08-20T20:00:00Z", "evidence_sha256": "a" * 64}
+                for check in ("tool-contract", "refusal-path", "rollback-smoke")
+            ],
+        }
+    })
+
+    response = http.get("/api/fleet/billing-reconciler/release-readiness")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "READY"
+    assert store.get("billing-reconciler").revision == "r7"
+    assert ledger.read_all() == []
+
+
+def test_release_readiness_of_an_unknown_agent_is_404(client):
+    http, _, _ = client
+    assert http.get("/api/fleet/missing/release-readiness").status_code == 404
+
+
 def test_asking_runs_the_operation_and_returns_the_record_hash(client):
     http, store, ledger = client
 
@@ -177,6 +204,7 @@ def test_the_console_is_served_from_the_same_origin_as_the_api(client):
     response = http.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    assert "/release-readiness" in response.text
 
 
 def test_the_public_build_article_is_served_with_its_evidence(client):
