@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ops.api import AgentUnavailable, handle_ask
@@ -23,9 +24,16 @@ from ops.store import FirestoreFleetStore
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "sdl-cinema-2026")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 ENGINE_ID = os.environ.get("GAO_ENGINE_ID", "")
-CONSOLE = Path(__file__).resolve().parent.parent / "console" / "index.html"
+CONSOLE_DIR = Path(__file__).resolve().parent.parent / "console"
+CONSOLE = CONSOLE_DIR / "index.html"
+BUILD_ARTICLE = CONSOLE_DIR / "build-article.html"
 
 app = FastAPI(title="Governed Agent Operations")
+app.mount(
+    "/build-article-assets",
+    StaticFiles(directory=CONSOLE_DIR / "article-assets"),
+    name="build-article-assets",
+)
 
 
 # Dependencies rather than inline constructors. Building a Firestore client
@@ -186,3 +194,8 @@ def decision_ablate(record_hash: str, ledger=Depends(get_ledger)) -> dict:
 @app.get("/")
 def console() -> FileResponse:
     return FileResponse(CONSOLE)
+
+
+@app.get("/build-article")
+def build_article() -> FileResponse:
+    return FileResponse(BUILD_ARTICLE)
