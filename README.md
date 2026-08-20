@@ -1,10 +1,14 @@
 # Governed Agent Operations
 
-An operations agent that manages a fleet of other agents — register, promote, quarantine,
-roll back — where every action it takes carries a record that **binds the retrieval set it
-decided from**.
+An on-call operator sent the same quarantine request twice. The request, code and policy were
+unchanged, but the operations agent targeted a different production agent after another process
+wrote one memory correction.
 
-> When an autonomous agent makes a decision, can you prove exactly why it was allowed to do it?
+Governed Agent Operations shows the operator exactly which memory revision changed the target. It
+binds every fleet action to the versioned retrieval population that produced it, and its verifier
+refuses to certify the record when that explanation is removed.
+
+> Same command. Different target. One memory changed. The record shows which one.
 
 ## The one shot
 
