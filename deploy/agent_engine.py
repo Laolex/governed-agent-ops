@@ -27,8 +27,8 @@ LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 STAGING = os.environ.get("GAO_STAGING_BUCKET", "gs://sdl-cinema-2026-agent-staging")
 
 REQUIREMENTS = [
-    "google-cloud-aiplatform[agent_engines,adk]",
-    "google-cloud-firestore",
+    "google-cloud-aiplatform[agent_engines,adk]>=1.164,<2",
+    "google-cloud-firestore>=2.28,<3",
 ]
 
 

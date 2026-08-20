@@ -99,7 +99,8 @@ the ablation.
 ## Running the tests
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -e . pytest
+python -m venv .venv
+.venv/bin/pip install -e ".[test]"
 .venv/bin/python -m pytest tests/ -q
 ```
 

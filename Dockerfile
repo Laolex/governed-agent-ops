@@ -1,14 +1,12 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY pyproject.toml ./
 COPY ops ./ops
 COPY console ./console
 COPY scripts ./scripts
+COPY pyproject.toml ./
 
-RUN pip install --no-cache-dir \
-      fastapi uvicorn google-cloud-firestore google-auth requests \
-      "google-cloud-aiplatform[agent_engines,adk]"
+RUN pip install --no-cache-dir .
 
 # Cloud Run supplies PORT. The console and the API share one origin, so a
 # viewer's browser never needs a second host and there is no CORS surface.
