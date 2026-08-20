@@ -41,6 +41,20 @@ The script exits non-zero without printing if the captured runs stop diverging, 
 identity ever appears in the evidence, or if the verifier stops separating a bound record
 from a stripped one.
 
+## Architecture
+
+![Architecture](docs/architecture.png)
+
+Two engines, four components under the operator's control. The **operations agent** — a
+native ADK agent on Vertex AI Agent Engine, `gemini-3.5-flash`, three read-only tools —
+resolves what an operator means and *proposes*; it never performs. The **executor**, the only
+component that can write, runs the deterministic policy gate, performs the state change, and
+appends the decision record — building the retrieval manifest *first*, so it describes what
+was in scope rather than what happened afterwards. The **decision record** carries that
+manifest by identity; the **standalone verifier** classifies it with no credentials. The
+**spike / H4b rig** (the second engine) is the Scene 2 divergence demonstration, kept as part
+of the entry. `docs/architecture.svg` is the editable source of the diagram.
+
 ## Why this exists
 
 On Google's agent platform, a decision's *inputs* are not recorded the way its *output* is.
@@ -85,7 +99,8 @@ the ablation.
 ## Running the tests
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -e . pytest
+python -m venv .venv
+.venv/bin/pip install -e ".[test]"
 .venv/bin/python -m pytest tests/ -q
 ```
 
@@ -106,6 +121,12 @@ GOOGLE_CLOUD_PROJECT=<project> GAO_ENGINE_ID=<reasoning engine id> \
 `/` serves the console; `/api/fleet`, `/api/ask`, `/api/decisions` are the surface behind it.
 An unset `GAO_ENGINE_ID` returns 503 naming the variable, so a misconfiguration never reads
 as a failure to decide.
+
+The console's record pane also surfaces `/api/decisions/{hash}/verify` (the capability class a
+third party can establish) and `/api/decisions/{hash}/ablate` (the four-arm necessity test,
+inline), plus a two-record comparison that pins decisions and diffs their retrieval manifests.
+The divergence and the record-that-catches-it are both visible in the browser, not only in
+scripts.
 
 ## Verifying a record without us
 

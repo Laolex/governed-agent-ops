@@ -13,6 +13,8 @@ configuration problem rather than as a failure to decide.
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -190,3 +192,83 @@ def test_an_agent_outage_is_a_502_not_a_null_determination(client):
     assert response.status_code == 502
     assert "agent" in response.json()["detail"].lower()
     assert ledger.read_all() == []
+
+
+# ——— verify + ablate surface ————————————————
+# The /verify and /ablate endpoints classify a record that already has a
+# retrieval binding, so these tests construct one directly rather than routing
+# through the empty-bank fixture (whose manifest has no selections to strip).
+
+def _signed_entry(body: dict) -> dict:
+    from ops.ledger import record_hash
+
+    prev = "genesis"
+    return {"body": body, "prev_hash": prev, "hash": record_hash(body, prev),
+            "sequence": 0}
+
+
+VERIFIABLE = _signed_entry({
+    "who": {"operator": "ola", "agent": "ops-agent"},
+    "what": {"operation": "quarantine", "target": "dunning-writer",
+             "cause": "failing health checks"},
+    "when": {"decided_at": "2026-08-18T18:00:00Z"},
+    "why": {"rule_hits": [], "blocking_condition": "", "outcome": "PERMITTED"},
+    "policy": {"revision": "GAO-2026.08"},
+    "retrieval": {
+        "scope": {"app_name": "e", "user_id": "u"},
+        "query": "what started failing",
+        "candidate_count": 18,
+        "excluded_count": 17,
+        "selected": [{
+            "memory": "m/7",
+            "revision": "m/7/revisions/700",
+            "revision_unresolved": False,
+            "fact_sha256": "f" * 64,
+            "distance": 0.81,
+        }],
+        "retrieved_at": "2026-08-18T18:00:00Z",
+    },
+    "result": {"state_before": "active", "state_after": "quarantined"},
+})
+
+
+def _with_ledger(ledger):
+    app = service.app
+    app.dependency_overrides = {service.get_ledger: lambda: ledger}
+    return TestClient(app)
+
+
+def test_verify_reports_the_capability_class_without_a_trace():
+    ledger = InMemoryLedger([copy.deepcopy(VERIFIABLE)])
+    http = _with_ledger(ledger)
+    try:
+        response = http.get(f"/api/decisions/{VERIFIABLE['hash']}/verify")
+        assert response.status_code == 200
+        # No live trace is exported, so the strongest honest class is
+        # BOUND_UNCORROBORATED — never BOUND, and never a percentage.
+        assert response.json()["capability"] == "BOUND_UNCORROBORATED"
+    finally:
+        service.app.dependency_overrides = {}
+
+
+def test_ablate_shows_the_binding_is_load_bearing():
+    ledger = InMemoryLedger([copy.deepcopy(VERIFIABLE)])
+    http = _with_ledger(ledger)
+    try:
+        body = http.get(
+            f"/api/decisions/{VERIFIABLE['hash']}/ablate").json()
+        by_name = {a["name"]: a for a in body["arms"]}
+        assert by_name["intact"]["capability"] == "BOUND_UNCORROBORATED"
+        assert by_name["identities stripped"]["capability"] == "UNBOUND"
+        assert by_name["population stripped"]["capability"] == "UNBOUND"
+        assert by_name["manifest removed"]["capability"] == "NOT_CERTIFIED"
+    finally:
+        service.app.dependency_overrides = {}
+
+
+def test_verify_of_an_unknown_record_is_a_404():
+    http = _with_ledger(InMemoryLedger([]))
+    try:
+        assert http.get("/api/decisions/" + "0" * 64 + "/verify").status_code == 404
+    finally:
+        service.app.dependency_overrides = {}
