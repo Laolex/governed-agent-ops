@@ -47,7 +47,24 @@
   input:focus{outline:none;border-color:var(--accent)}
   button{background:var(--accent);border:0;border-radius:7px;padding:9px 15px;
          color:#0b0e13;font:inherit;font-weight:600;cursor:pointer}
+  button:active:not(:disabled){transform:translateY(1px)}
   button:disabled{opacity:.5;cursor:default}
+  .request-status{display:none;margin:-4px 0 14px;padding:10px 12px;
+                  border-left:2px solid var(--accent);background:#11161d}
+  .request-status.show{display:block}
+  .request-status.done{border-color:var(--ok)}
+  .request-status.error{border-color:var(--no)}
+  .status-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .status-line b{font-size:12px;font-weight:600;color:#c9d3e0}
+  .status-line time{font:11px/1 var(--mono);color:var(--dim)}
+  .status-detail{margin-top:3px;color:var(--dim);font-size:11.5px}
+  .progress-track{height:2px;margin-top:9px;background:var(--line);overflow:hidden}
+  .progress-track i{display:block;width:24%;height:100%;background:var(--accent);
+                    animation:request-progress 1.35s cubic-bezier(.4,0,.2,1) infinite;
+                    will-change:transform}
+  .request-status.done .progress-track i{width:100%;background:var(--ok);animation:none}
+  .request-status.error .progress-track i{width:100%;background:var(--no);animation:none}
+  @keyframes request-progress{from{transform:translateX(-100%)}to{transform:translateX(420%)}}
   .step{border-left:2px solid var(--line);padding:7px 0 7px 11px;margin-bottom:9px}
   .step .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
   .step pre{margin:4px 0 0;font-family:var(--mono);font-size:12px;white-space:pre-wrap;
@@ -103,6 +120,7 @@
     .proof-claim{padding:8px 0 0;border-left:0;border-top:1px solid var(--line)}
     main{grid-template-columns:1fr}
   }
+  @media(prefers-reduced-motion:reduce){.progress-track i{animation:none;width:45%}}
 </style>
 
 <header>
@@ -132,6 +150,11 @@
              autocomplete="off">
       <button id="send">Ask</button>
     </form>
+    <div id="request-status" class="request-status" role="status" aria-live="polite">
+      <div class="status-line"><b id="request-stage">Sending request</b><time id="request-elapsed">00:00</time></div>
+      <div id="request-detail" class="status-detail">No fleet operation runs until the agent returns a proposal.</div>
+      <div class="progress-track" aria-hidden="true"><i></i></div>
+    </div>
     <div id="turn" class="empty">Run the request once, write the correction, then run the identical words again.</div>
   </section>
 
@@ -249,13 +272,58 @@ function renderRecord(result, body){
     versioned records were selected, and how many were not.</p>`;
 }
 
+let __requestTimer = null;
+let __requestStartedAt = 0;
+
+function elapsedLabel(seconds){
+  return String(Math.floor(seconds / 60)).padStart(2, '0') + ':'
+    + String(seconds % 60).padStart(2, '0');
+}
+
+function updateRequestProgress(){
+  const seconds = Math.floor((Date.now() - __requestStartedAt) / 1000);
+  $('request-elapsed').textContent = elapsedLabel(seconds);
+  if (seconds >= 15){
+    $('request-stage').textContent = 'Agent Engine is still working';
+    $('request-detail').textContent = 'Keep this window open. No operation has run without a returned proposal.';
+  } else if (seconds >= 4){
+    $('request-stage').textContent = 'Waiting for Agent Engine';
+    $('request-detail').textContent = 'Live model calls can take several seconds, especially after an idle period.';
+  } else {
+    $('request-stage').textContent = 'Sending request';
+    $('request-detail').textContent = 'No fleet operation runs until the agent returns a proposal.';
+  }
+  $('send').textContent = 'Working ' + elapsedLabel(seconds);
+}
+
+function startRequestProgress(){
+  clearInterval(__requestTimer);
+  __requestStartedAt = Date.now();
+  $('request-status').className = 'request-status show';
+  $('ask').setAttribute('aria-busy', 'true');
+  updateRequestProgress();
+  __requestTimer = setInterval(updateRequestProgress, 1000);
+}
+
+function finishRequestProgress(stage, detail, tone){
+  clearInterval(__requestTimer);
+  __requestTimer = null;
+  $('request-stage').textContent = stage;
+  $('request-detail').textContent = detail;
+  $('request-status').className = 'request-status show ' + tone;
+  $('ask').removeAttribute('aria-busy');
+  $('send').textContent = 'Ask';
+}
+
 $('ask').addEventListener('submit', async e => {
   e.preventDefault();
   const message = $('msg').value.trim();
   if (!message) return;
   $('send').disabled = true;
+  $('msg').disabled = true;
+  startRequestProgress();
   $('turn').className = 'empty';
-  $('turn').textContent = 'Asking the agent…';
+  $('turn').textContent = 'The request is in progress. Live status appears above.';
   try {
     const response = await fetch('/api/ask', {
       method:'POST', headers:{'content-type':'application/json'},
@@ -266,6 +334,10 @@ $('ask').addEventListener('submit', async e => {
       throw new Error(detail.detail || ('HTTP ' + response.status));
     }
     const result = await response.json();
+    $('request-stage').textContent = 'Agent responded';
+    $('request-detail').textContent = result.record_hash
+      ? 'Loading the resulting decision record and verification state.'
+      : 'The agent returned without proposing a fleet operation.';
     renderTurn(result.transcript || []);
     let body = null;
     if (result.record_hash)
@@ -280,6 +352,13 @@ $('ask').addEventListener('submit', async e => {
     }
     await loadHistory();
     await loadFleet();
+    const seconds = Math.floor((Date.now() - __requestStartedAt) / 1000);
+    finishRequestProgress(
+      result.record_hash ? 'Decision recorded' : 'No operation proposed',
+      result.record_hash
+        ? 'Agent response, decision record and fleet state loaded in ' + elapsedLabel(seconds) + '.'
+        : 'The agent completed the turn without changing fleet state.',
+      'done');
   } catch (err) {
     // An outage must not read as a decision. The null-determination path below
     // says "nothing was proposed", which is true of a working agent and a lie
@@ -287,8 +366,11 @@ $('ask').addEventListener('submit', async e => {
     $('turn').className = 'empty';
     $('turn').textContent = 'The agent could not be reached. No operation was '
       + 'attempted and nothing was recorded. ' + err;
+    finishRequestProgress('Request failed',
+      'No operation was attempted and nothing was recorded.', 'error');
   } finally {
     $('send').disabled = false;
+    $('msg').disabled = false;
   }
 });
 

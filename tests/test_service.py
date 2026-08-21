@@ -205,6 +205,9 @@ def test_the_console_is_served_from_the_same_origin_as_the_api(client):
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "/release-readiness" in response.text
+    assert "Waiting for Agent Engine" in response.text
+    assert "No fleet operation runs until the agent returns a proposal." in response.text
+    assert 'role="status"' in response.text
 
 
 def test_the_public_build_article_is_served_with_its_evidence(client):
