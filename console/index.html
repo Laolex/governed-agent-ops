@@ -73,6 +73,14 @@
   .verdict .o{font-family:var(--mono);font-size:19px;font-weight:600}
   .PERMITTED{color:var(--ok)} .REFUSED{color:var(--no)} .ESCALATE{color:var(--warn)}
   .verdict .by{font-size:12px;color:var(--dim);margin-top:3px}
+  .control-path{margin:0 0 14px;padding:0;list-style:none;border-top:1px solid var(--line)}
+  .control-step{display:grid;grid-template-columns:28px 86px minmax(0,1fr) auto;gap:10px;
+                align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+  .control-step .num,.control-step .status{font:10px/1.3 var(--mono);color:var(--dim)}
+  .control-step .kind{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+  .control-step .detail{font:11.5px/1.45 var(--mono);color:#c9d3e0;word-break:break-word}
+  .control-step .status{text-transform:uppercase;letter-spacing:.06em;color:var(--ok)}
+  .control-step .status.held{color:var(--warn)}
   .field{border-top:1px solid var(--line);padding:11px 0}
   .field .n{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
   .field .v{font-family:var(--mono);font-size:12.5px;margin-top:4px;word-break:break-word}
@@ -106,19 +114,29 @@
   .dec input{margin:0;accent-color:var(--accent)}
   .dec .o{min-width:72px}
   .dec .h{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .compare{margin-top:14px;border:1px solid var(--line);border-radius:9px;padding:12px}
+  .compare{margin-top:14px;border:1px solid var(--line);border-radius:9px;padding:12px;overflow-x:auto}
   .compare h3{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
               color:var(--dim);font-weight:600}
-  .cmp-row{display:flex;gap:10px;margin-bottom:6px;font-family:var(--mono);font-size:12px}
-  .cmp-row .k{width:130px;color:var(--dim);flex-shrink:0;text-transform:uppercase;
-              font-size:10.5px;letter-spacing:.06em;padding-top:2px}
-  .cmp-row .a,.cmp-row .b{flex:1;word-break:break-all}
-  .cmp-row.changed{background:#161b23;border-left:2px solid var(--accent);padding:5px 8px}
-  .cmp-row.changed .a,.cmp-row.changed .b{color:var(--accent)}
+  .cmp-table{width:100%;min-width:430px;border-collapse:collapse;table-layout:fixed}
+  .cmp-table th,.cmp-table td{padding:7px 8px;border-bottom:1px solid var(--line);
+                              text-align:left;vertical-align:top;font:11.5px/1.4 var(--mono);
+                              word-break:break-word}
+  .cmp-table thead th{color:var(--dim);font-size:10px;text-transform:uppercase;
+                      letter-spacing:.06em}
+  .cmp-table thead th:first-child{width:92px}
+  .cmp-table tbody th{color:var(--dim);font-size:10px;text-transform:uppercase;
+                      letter-spacing:.06em;font-weight:500}
+  .cmp-table tr.changed{background:#161b23}
+  .cmp-table tr.changed th{border-left:2px solid var(--accent);padding-left:6px}
+  .cmp-table tr.changed td{color:var(--accent)}
   @media(max-width:1000px){
     header{grid-template-columns:1fr;gap:8px;padding:16px 18px}
     .proof-claim{padding:8px 0 0;border-left:0;border-top:1px solid var(--line)}
     main{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .control-step{grid-template-columns:24px 1fr auto}
+    .control-step .detail{grid-column:2/-1}
   }
   @media(prefers-reduced-motion:reduce){.progress-track i{animation:none;width:45%}}
 </style>
@@ -238,6 +256,19 @@ function renderRecord(result, body){
       ${d.rule_hits.length ? `<div class="by">${esc(d.rule_hits.join(', '))}:
           ${esc(d.blocking_condition)}</div>` : ''}
     </div>
+
+    <ol class="control-path" aria-label="Governed decision path">
+      <li class="control-step"><span class="num">01</span><span class="kind">Agent proposal</span>
+        <span class="detail">${esc(body.what.operation)} → ${esc(body.what.target)}</span>
+        <span class="status">proposed</span></li>
+      <li class="control-step"><span class="num">02</span><span class="kind">Policy gate</span>
+        <span class="detail">${esc(body.policy.revision)} · ${esc(d.decided_by)}</span>
+        <span class="status">${esc(d.outcome)}</span></li>
+      <li class="control-step"><span class="num">03</span><span class="kind">Executor</span>
+        <span class="detail">${esc(body.result.state_before || 'not recorded')} →
+          ${esc(body.result.state_after || 'not recorded')}</span>
+        <span class="status ${d.outcome === 'PERMITTED' ? '' : 'held'}">${d.outcome === 'PERMITTED' ? 'applied' : 'held'}</span></li>
+    </ol>
 
     <div class="field"><div class="n">Who</div>
       <div class="v">${esc(body.who.operator)} via ${esc(body.who.agent)}</div></div>
@@ -426,7 +457,9 @@ async function loadHistory(){
   $('history').innerHTML = list.map(d => {
     const w = (d.body && d.body.what) || {}, y = (d.body && d.body.why) || {};
     return `<div class="dec">
-      <input type="checkbox" data-pin="${esc(d.hash)}" ${__pinned.includes(d.hash)?'checked':''}>
+      <input type="checkbox" data-pin="${esc(d.hash)}"
+             aria-label="Pin decision ${esc(d.hash.slice(0,10))} for comparison"
+             ${__pinned.includes(d.hash)?'checked':''}>
       <span class="o ${esc(y.outcome||'')}">${esc(y.outcome||'not recorded')}</span>
       <span class="h">${esc((w.operation||'')+' '+(w.target||''))} · ${esc(d.hash.slice(0,10))}…</span>
     </div>`;
@@ -466,9 +499,12 @@ async function renderCompare(){
   const changed = rows.filter(([, av, bv]) => String(av) !== String(bv)).length;
   el.className = 'compare';
   el.innerHTML = `<h3>Same request. What moved?</h3>` +
-    rows.map(([k, av, bv]) => `<div class="cmp-row ${String(av)===String(bv)?'':'changed'}">
-        <span class="k">${esc(k)}</span><span class="a">${esc(av)}</span><span class="b">${esc(bv)}</span>
-      </div>`).join('') +
+    `<table class="cmp-table"><thead><tr><th scope="col">Recorded field</th>` +
+    `<th scope="col">${esc(a.hash.slice(0,10))}…</th>` +
+    `<th scope="col">${esc(b.hash.slice(0,10))}…</th></tr></thead><tbody>` +
+    rows.map(([k, av, bv]) => `<tr class="${String(av)===String(bv)?'shared':'changed'}">
+        <th scope="row">${esc(k)}</th><td>${esc(av)}</td><td>${esc(bv)}</td>
+      </tr>`).join('') + `</tbody></table>` +
     `<p class="note">${changed} field(s) differ. The operator and words are identical. The cause is
       visible in the manifest: the population and the selected revisions.</p>`;
 }
